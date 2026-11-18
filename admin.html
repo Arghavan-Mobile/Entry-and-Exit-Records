@@ -80,7 +80,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
   <section id="v-app" hidden>
     <div class="row">
       <div class="tabs">
-        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button>
+        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button><button id="t5" class="g">گزارش و بررسی</button>
       </div>
       <span style="flex:1"></span><button class="g" id="out2">خروج</button>
     </div>
@@ -140,6 +140,20 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
           <table><tbody id="inviteRows"><tr><td class="m">برای نمایش دعوت‌ها، فهرست را به‌روزرسانی کن.</td></tr></tbody></table>
         </div>
       </div>
+    </div>
+    <div id="p5" hidden>
+      <h2>گزارش و بررسی حضور و غیاب</h2>
+      <div class="row">
+        <label>از تاریخ <input id="reportFrom" type="date"></label>
+        <label>تا تاریخ <input id="reportTo" type="date"></label>
+        <select id="reportEmployee" style="font:inherit;padding:10px;border:1px solid var(--ln);border-radius:10px">
+          <option value="">همه کارکنان</option>
+        </select>
+        <button type="button" id="loadReport">نمایش گزارش</button>
+        <button type="button" class="g" id="exportReport">خروجی CSV</button>
+      </div>
+      <p class="s" id="reportMsg"></p>
+      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
     </div>
   </section>
 </main>
@@ -225,7 +239,7 @@ async function boot() {
 }
 
 // ---------- تب‌ها ----------
-[1, 2, 3, 4].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4].forEach(k => {
+[1, 2, 3, 4, 5].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
 }));
 
@@ -272,6 +286,7 @@ $('fAssign').onsubmit = async e => {
   if (error) { say('aemsg', 'تعیین مدیر انجام نشد: ' + error.message); return; }
   $('ae').value = '';
   say('aemsg', 'حساب تأییدشده با نقش مدیر فروشگاه فعال شد.', 1);
+  loadOwnerLifecycle();
 };
 
 // ---------- مدیریت چرخه مدیران (فقط مالک) ----------
@@ -361,6 +376,93 @@ $('tb').onclick = async e => {
   say('emsg', r.error ? fe(r.error.message) : 'انجام شد.', !r.error); load();
 };
 $('pAll').onclick = () => cards(emps.filter(e => e.active));
+
+// ---------- گزارش و مرکز بررسی حضور ----------
+let reportCache = [];
+const reportDateKey = v => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit'
+}).format(new Date(v));
+const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
+  timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short'
+}) : '—';
+function fillReportEmployees() {
+  $('reportEmployee').innerHTML = '<option value="">همه کارکنان</option>' +
+    emps.map(e => '<option value="' + e.id + '">' + esc(e.full_name) + '</option>').join('');
+}
+async function loadReport() {
+  say('reportMsg', 'در حال دریافت سوابق...', 1);
+  try {
+    const [records] = await Promise.all([all('attendance_records', '*')]);
+    reportCache = records;
+    fillReportEmployees();
+    const from = $('reportFrom').value, to = $('reportTo').value, empId = $('reportEmployee').value;
+    const filtered = records.filter(r => {
+      const day = reportDateKey(r.check_in);
+      return (!from || day >= from) && (!to || day <= to) && (!empId || r.employee_id === empId);
+    }).sort((a,b) => new Date(b.check_in) - new Date(a.check_in));
+    const names = new Map(emps.map(e => [e.id, e.full_name]));
+    $('reportRows').innerHTML = filtered.length ? filtered.map(r => {
+      const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
+      const duration = mins === null ? 'باز' : Math.floor(mins/60) + 'ساعت و ' + (mins%60) + 'دقیقه';
+      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی');
+      return '<tr><td>' + esc(names.get(r.employee_id) || 'کارمند حذف‌شده') + '</td><td>' +
+        reportFaTime(r.check_in) + '</td><td>' + reportFaTime(r.check_out) + '</td><td>' +
+        duration + '</td><td>' + status + '</td><td class="a" data-record="' + r.id + '">' +
+        '<button class="g" data-report-action="edit">اصلاح</button>' +
+        '<button class="g" data-report-action="delete">حذف</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
+    say('reportMsg', 'تعداد رکوردهای نمایش‌داده‌شده: ' + filtered.length, 1);
+    reportCache = filtered;
+  } catch (err) {
+    say('reportMsg', 'گزارش بارگذاری نشد: ' + (err.message || err));
+  }
+}
+$('loadReport').onclick = loadReport;
+$('reportEmployee').onchange = loadReport;
+$('reportRows').onclick = async e => {
+  const b = e.target.closest('button[data-report-action]'); if (!b) return;
+  const row = reportCache.find(x => x.id === b.parentNode.dataset.record); if (!row) return;
+  if (b.dataset.reportAction === 'delete') {
+    const reason = prompt('دلیل حذف این رکورد را بنویس (حداقل ۳ حرف):');
+    if (!reason || reason.trim().length < 3) return;
+    if (!confirm('رکورد حذف شود؟ این عملیات در سابقه ممیزی ثبت می‌شود.')) return;
+    b.disabled = true;
+    const {error} = await sb.rpc('admin_delete_record', {p_record: row.id, p_reason: reason.trim()});
+    if (error) { say('reportMsg', 'حذف ناموفق بود: ' + error.message); b.disabled = false; return; }
+    say('reportMsg', 'رکورد حذف شد و در ممیزی ثبت شد.', 1); loadReport(); return;
+  }
+  const currentIn = row.check_in ? new Date(row.check_in).toISOString() : '';
+  const currentOut = row.check_out ? new Date(row.check_out).toISOString() : '';
+  const checkIn = prompt('زمان ورود جدید با قالب ISO-8601 و منطقه زمانی (مثال: 2026-11-18T08:30:00+03:30):', currentIn);
+  if (checkIn === null) return;
+  const checkOut = prompt('زمان خروج جدید با قالب ISO-8601؛ برای ورود باز خالی بگذار:', currentOut);
+  if (checkOut === null) return;
+  const reason = prompt('دلیل اصلاح را بنویس (حداقل ۳ حرف):');
+  if (!reason || reason.trim().length < 3) return;
+  const inDate = new Date(checkIn), outDate = checkOut.trim() ? new Date(checkOut) : null;
+  if (Number.isNaN(inDate.getTime()) || (outDate && Number.isNaN(outDate.getTime())) ||
+      (outDate && outDate <= inDate)) {
+    say('reportMsg', 'زمان واردشده معتبر نیست یا خروج قبل از ورود است.'); return;
+  }
+  b.disabled = true;
+  const {error} = await sb.rpc('admin_edit_record', {
+    p_record: row.id, p_check_in: inDate.toISOString(),
+    p_check_out: outDate ? outDate.toISOString() : null, p_reason: reason.trim()
+  });
+  if (error) { say('reportMsg', 'اصلاح ناموفق بود: ' + error.message); b.disabled = false; return; }
+  say('reportMsg', 'رکورد اصلاح شد و در ممیزی ثبت شد.', 1); loadReport();
+};
+$('exportReport').onclick = () => {
+  if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
+  const names = new Map(emps.map(e => [e.id, e.full_name]));
+  const rows = [['employee','check_in','check_out','needs_review','edited'], ...reportCache.map(r => [
+    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited
+  ])];
+  const csv = rows.map(row => row.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'arghavan-attendance.csv'; a.click();
+  URL.revokeObjectURL(url);
+};
 function cards(list) {
   if (typeof qrcode === 'undefined') { say('emsg', 'کتابخانهٔ QR بارگذاری نشد. اینترنت را بررسی کن.'); return; }
   $('cards').innerHTML = list.map(e => {
