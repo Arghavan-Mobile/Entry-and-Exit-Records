@@ -129,6 +129,16 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
           <button class="g">تعیین مدیر</button>
         </form>
         <p class="s" id="aemsg"></p>
+        <div class="tw" style="margin-top:12px">
+          <h2 style="padding:0 10px">مدیران فعال</h2>
+          <div class="row" style="padding:0 10px"><button type="button" class="g" id="refreshManagers">به‌روزرسانی فهرست</button></div>
+          <p class="s" id="managerMsg"></p>
+          <table><tbody id="managerRows"><tr><td class="m">برای نمایش فهرست، به‌روزرسانی را بزن.</td></tr></tbody></table>
+        </div>
+        <div class="tw" style="margin-top:12px">
+          <h2 style="padding:0 10px">دعوت‌های مدیران</h2>
+          <table><tbody id="inviteRows"><tr><td class="m">برای نمایش دعوت‌ها، فهرست را به‌روزرسانی کن.</td></tr></tbody></table>
+        </div>
       </div>
     </div>
   </section>
@@ -211,6 +221,7 @@ async function boot() {
   $('t4').hidden = !canInvite;
   $('ownerAssign').hidden = ownerRole !== true;
   view('app'); load(); showBk();
+  if (ownerRole === true) loadOwnerLifecycle();
 }
 
 // ---------- تب‌ها ----------
@@ -261,6 +272,55 @@ $('fAssign').onsubmit = async e => {
   if (error) { say('aemsg', 'تعیین مدیر انجام نشد: ' + error.message); return; }
   $('ae').value = '';
   say('aemsg', 'حساب تأییدشده با نقش مدیر فروشگاه فعال شد.', 1);
+};
+
+// ---------- مدیریت چرخه مدیران (فقط مالک) ----------
+function fmtDate(v) {
+  return v ? new Date(v).toLocaleString('fa-IR') : '—';
+}
+async function loadOwnerLifecycle() {
+  say('managerMsg', 'در حال دریافت اطلاعات...', 1);
+  const [{data: managers, error: managerError}, {data: invites, error: inviteError}] = await Promise.all([
+    sb.rpc('owner_list_store_managers'),
+    sb.rpc('owner_list_manager_invites')
+  ]);
+  if (managerError || inviteError) {
+    say('managerMsg', 'دریافت فهرست ناموفق بود: ' + (managerError || inviteError).message);
+    return;
+  }
+  $('managerRows').innerHTML = managers.length ? managers.map(m =>
+    '<tr><td>' + esc(m.email || 'بدون ایمیل') + '<br><small class="m">' + fmtDate(m.assigned_at) + '</small></td>' +
+    '<td class="a"><button class="g" data-manager-revoke="' + m.user_id + '">لغو دسترسی</button></td></tr>'
+  ).join('') : '<tr><td class="m">مدیر فعالی وجود ندارد.</td></tr>';
+
+  const pending = invites.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date());
+  $('inviteRows').innerHTML = pending.length ? pending.map(i =>
+    '<tr><td>' + esc(i.invite_email) + '<br><small class="m">دعوت: ' + fmtDate(i.created_at) +
+    ' | انقضا: ' + fmtDate(i.expires_at) + '</small></td><td class="a">' +
+    '<button class="g" data-invite-revoke="' + i.invite_id + '">لغو دعوت</button></td></tr>'
+  ).join('') : '<tr><td class="m">دعوت در انتظار پذیرش وجود ندارد.</td></tr>';
+  say('managerMsg', 'فهرست مدیران و دعوت‌ها به‌روزرسانی شد.', 1);
+}
+$('refreshManagers').onclick = loadOwnerLifecycle;
+$('managerRows').onclick = async e => {
+  const b = e.target.closest('button[data-manager-revoke]');
+  if (!b) return;
+  if (!confirm('دسترسی این مدیر فوراً لغو شود؟')) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('owner_revoke_store_manager', {p_user_id: b.dataset.managerRevoke});
+  if (error) { say('managerMsg', 'لغو دسترسی انجام نشد: ' + error.message); b.disabled = false; return; }
+  say('managerMsg', 'دسترسی مدیر لغو شد.', 1);
+  loadOwnerLifecycle();
+};
+$('inviteRows').onclick = async e => {
+  const b = e.target.closest('button[data-invite-revoke]');
+  if (!b) return;
+  if (!confirm('این دعوت لغو شود؟')) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('revoke_manager_invite', {p_invite_id: b.dataset.inviteRevoke});
+  if (error) { say('managerMsg', 'لغو دعوت انجام نشد: ' + error.message); b.disabled = false; return; }
+  say('managerMsg', 'دعوت لغو شد.', 1);
+  loadOwnerLifecycle();
 };
 
 // ---------- پرسنل ----------
