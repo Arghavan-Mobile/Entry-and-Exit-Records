@@ -304,7 +304,7 @@ async function boot() {
   $('appTitle').textContent = ownerRole === true ? 'پنل مالک' : 'پنل مدیر';
   document.title = $('appTitle').textContent + ' | موبایل ارغوان';
   $('who').textContent = (u && u.user ? u.user.email : '') + ' — ' + activeRoleLabel;
-  const canInvite = ownerRole === true;
+  const canInvite = ownerRole === true || managerRole === true;
   $('t4').hidden = !canInvite;
   $('ownerAssign').hidden = ownerRole !== true;
   view('app'); load(); showBk(); loadSettings();
