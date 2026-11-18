@@ -20,12 +20,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate application
+        run: node scripts/validate-html.cjs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+      - name: Prepare public site files
+        run: |
+          mkdir _site
+          cp index.html admin.html config.js logo.png _site/
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
   deploy:
     environment:
       name: github-pages
