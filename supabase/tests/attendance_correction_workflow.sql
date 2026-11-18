@@ -18,6 +18,7 @@ declare
   v_req2_id uuid;
   v_count integer;
   v_record public.attendance_records%rowtype;
+  v_history jsonb;
 begin
   perform set_config('request.jwt.claim.sub', 'edc8fe57-81af-4672-bb3b-ca1a6bad161a', true);
   perform set_config('request.jwt.claims',
@@ -48,6 +49,11 @@ begin
   if v_req1 ->> 'ok' <> 'true' then raise exception 'employee_request_submission_failed: %',v_req1; end if;
   v_req1_id := (v_req1 ->> 'request_id')::uuid;
 
+  v_history := public.kiosk_my_records(v_qr1,'1234',now()-interval '1 day',now()+interval '1 day');
+  if v_history -> 'records' -> 0 ->> 'has_pending_request' <> 'true' then
+    raise exception 'employee_history_pending_status_missing';
+  end if;
+
   select count(*) into v_count from public.manager_list_attendance_requests();
   if v_count < 1 then raise exception 'manager_request_queue_empty'; end if;
 
@@ -68,6 +74,10 @@ begin
   select * into v_record from public.attendance_records where id=v_record1;
   if v_record.check_in <> now() - interval '4 hours 30 minutes' or v_record.edited is not true then
     raise exception 'approved_correction_not_applied';
+  end if;
+  v_history := public.kiosk_my_records(v_qr1,'1234',now()-interval '1 day',now()+interval '1 day');
+  if v_history -> 'records' -> 0 ->> 'latest_request_status' <> 'approved' then
+    raise exception 'employee_history_approval_status_missing';
   end if;
 
   v_req2 := public.employee_submit_attendance_request(
