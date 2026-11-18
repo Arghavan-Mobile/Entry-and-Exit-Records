@@ -86,6 +86,21 @@ Deno.serve(async (req: Request) => {
   if (existingError) return json({ error: "invite_lookup_failed" }, 500);
   if (existingInvite) return json({ error: "invite_already_pending" }, 409);
 
+  // If the target already has an Auth account, create a pending invitation
+  // that they can claim after signing in with that same verified email.
+  const { data: usersPage, error: usersError } = await adminClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (usersError) return json({ error: "auth_user_lookup_failed" }, 500);
+  const existingUser = usersPage.users.find(
+    (user) => (user.email ?? "").toLowerCase() === email,
+  );
+
+  if (existingUser && !existingUser.email_confirmed_at) {
+    return json({ error: "existing_user_must_confirm_email_first" }, 409);
+  }
+
   const { data: inviteRow, error: insertError } = await adminClient
     .from("manager_invites")
     .insert({ email, invited_by: caller.id })
@@ -94,21 +109,29 @@ Deno.serve(async (req: Request) => {
 
   if (insertError || !inviteRow) return json({ error: "invite_record_failed" }, 500);
 
-  const { error: authInviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    redirectTo: new URL("/admin.html?accept-manager-invite=1", appUrl).toString(),
-  });
+  if (!existingUser) {
+    const { error: authInviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      redirectTo: new URL("/admin.html?accept-manager-invite=1", appUrl).toString(),
+    });
 
-  if (authInviteError) {
-    await adminClient.from("manager_invites").delete().eq("id", inviteRow.id);
-    return json({ error: "auth_invitation_failed", detail: authInviteError.message }, 400);
+    if (authInviteError) {
+      await adminClient.from("manager_invites").delete().eq("id", inviteRow.id);
+      return json({ error: "auth_invitation_failed", detail: authInviteError.message }, 400);
+    }
   }
 
   const { error: auditError } = await adminClient.from("audit_log").insert({
     admin_email: caller.email?.toLowerCase() ?? "",
     action: "invite_manager",
-    new_data: { email, invite_id: inviteRow.id },
+    new_data: { email, invite_id: inviteRow.id, existing_auth_user: Boolean(existingUser) },
   });
-  if (auditError) return json({ error: "invite_sent_audit_write_failed" }, 500);
 
-  return json({ ok: true, message: "manager_invitation_sent" }, 200);
+  const claimUrl = new URL("/admin.html?accept-manager-invite=1", appUrl).toString();
+  return json({
+    ok: true,
+    message: existingUser ? "existing_user_must_sign_in_and_claim" : "manager_invitation_sent",
+    existing_user: Boolean(existingUser),
+    claim_url: existingUser ? claimUrl : undefined,
+    audit_warning: auditError ? "audit_log_write_failed" : undefined,
+  }, 200);
 });
