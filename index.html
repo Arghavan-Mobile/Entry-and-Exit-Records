@@ -73,6 +73,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     </div>
     <div class="tw"><table id="tb"></table></div>
     <p id="sum"></p>
+    <p id="reqmsg" class="err"></p>
     <button id="out">خروج از این صفحه</button>
   </section>
 </main>
@@ -85,7 +86,7 @@ const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
 const V = {home: $('home'), pin: $('pinv'), res: $('res'), rec: $('rec')};
-let mode = 'clock', qr = '', pass = '', mstart = 0, tmr;
+let mode = 'clock', qr = '', pass = '', mstart = 0, tmr, recRows = [];
 
 // ---------- ابزارها ----------
 const fa = n => Number(n).toLocaleString('fa-IR');
@@ -210,20 +211,74 @@ async function loadRec() {
   if (!r.ok) { fail(r); return; }
   $('rname').textContent = r.name;
   $('mt').textContent = new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, month: 'long', year: 'numeric'}).format(mstart + D / 2);
-  let total = 0, rows = '<tr><th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th></tr>';
+  recRows = r.records || [];
+  $('reqmsg').textContent = '';
+  let total = 0, rows = '<tr><th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>درخواست اصلاح</th></tr>';
   for (const x of r.records) {
     const d = x.check_out ? (new Date(x.check_out) - new Date(x.check_in)) / 6e4 : null;
     if (d) total += d;
+    const state = x.has_pending_request ? 'در انتظار بررسی' :
+      (x.latest_request_status === 'approved' ? 'درخواست قبلی تأیید شد' :
+      (x.latest_request_status === 'rejected' ? 'درخواست قبلی رد شد' : ''));
     rows += '<tr><td>' + dayFmt(x.check_in) + '</td><td>' + tm(x.check_in) + '</td><td>' +
       (x.check_out ? tm(x.check_out) : '—') + '</td><td>' + (d ? dur(d) : 'در حال کار') +
-      (x.edited ? '<br><span class="tag">ویرایش‌شده توسط مدیر</span>' : '') + '</td></tr>';
+      (x.edited ? '<br><span class="tag">ویرایش‌شده</span>' : '') +
+      (x.needs_review ? '<br><span class="tag">نیازمند بررسی</span>' : '') + '</td><td>' +
+      (x.has_pending_request ? '<span class="tag">' + state + '</span>' :
+      '<button class="g" data-correction="' + x.id + '">درخواست اصلاح</button>' +
+      (state ? '<br><small class="m">' + state + '</small>' : '')) + '</td></tr>';
   }
-  if (!r.records.length) rows += '<tr><td colspan="4" class="m">در این ماه رکوردی نیست.</td></tr>';
+  if (!r.records.length) rows += '<tr><td colspan="5" class="m">در این ماه رکوردی نیست.</td></tr>';
   $('tb').innerHTML = rows;
   $('sum').textContent = 'جمع کار این ماه: ' + dur(total);
   $('nx').disabled = next > Date.now();
   show('rec'); idle(90);
 }
+$('tb').onclick = async e => {
+  const b = e.target.closest('button[data-correction]');
+  if (!b) return;
+  const row = recRows.find(x => x.id === b.dataset.correction);
+  if (!row || row.has_pending_request) return;
+  const checkIn = prompt('زمان ورود درخواستی با قالب ISO-8601 و منطقه زمانی (مثال: 2026-11-18T08:30:00+03:30):', new Date(row.check_in).toISOString());
+  if (checkIn === null) return;
+  const checkOut = prompt('زمان خروج درخواستی با قالب ISO-8601؛ اگر هنوز خروج ثبت نشده، خالی بگذار:', row.check_out ? new Date(row.check_out).toISOString() : '');
+  if (checkOut === null) return;
+  const reason = prompt('دلیل درخواست اصلاح را بنویس (حداقل ۵ حرف):');
+  if (!reason || reason.trim().length < 5) { $('reqmsg').textContent = 'دلیل درخواست باید حداقل ۵ حرف باشد.'; return; }
+  const inDate = new Date(checkIn), outDate = checkOut.trim() ? new Date(checkOut) : null;
+  if (Number.isNaN(inDate.getTime()) || (outDate && Number.isNaN(outDate.getTime())) ||
+      (outDate && outDate <= inDate)) {
+    $('reqmsg').textContent = 'زمان واردشده معتبر نیست یا خروج قبل از ورود است.'; return;
+  }
+  b.disabled = true;
+  $('reqmsg').textContent = 'در حال ارسال درخواست...';
+  try {
+    const result = await rpc('employee_submit_attendance_request', {
+      p_qr: qr, p_pin: pass, p_record_id: row.id,
+      p_requested_check_in: inDate.toISOString(),
+      p_requested_check_out: outDate ? outDate.toISOString() : null,
+      p_reason: reason.trim()
+    });
+    if (!result.ok) {
+      const messages = {
+        record_not_found: 'این رکورد متعلق به شما نیست یا پیدا نشد.',
+        request_already_pending: 'برای این رکورد یک درخواست در انتظار بررسی وجود دارد.',
+        reason_required: 'دلیل درخواست کافی نیست.',
+        no_changes_requested: 'زمان‌های جدید با رکورد فعلی تفاوتی ندارند.',
+        wrong_pin: 'پین تأیید نشد. دوباره وارد سوابق شوید.',
+        locked: 'به دلیل تلاش ناموفق، کارت موقتاً قفل شده است.'
+      };
+      $('reqmsg').textContent = messages[result.error] || 'درخواست ثبت نشد: ' + result.error;
+      b.disabled = false;
+      return;
+    }
+    $('reqmsg').textContent = 'درخواست شما ثبت شد و پس از بررسی مدیر نتیجه نمایش داده می‌شود.';
+    await loadRec();
+  } catch (err) {
+    $('reqmsg').textContent = 'ارسال درخواست ناموفق بود. اتصال اینترنت را بررسی کنید.';
+    b.disabled = false;
+  }
+};
 $('pv').onclick = () => { mstart = monthStart(mstart - D); loadRec().catch(() => {}); };
 $('nx').onclick = () => { mstart = nextMonth(mstart); loadRec().catch(() => {}); };
 $('out').onclick = () => home();
