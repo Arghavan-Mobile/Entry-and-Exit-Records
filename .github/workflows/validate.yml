@@ -1,0 +1,23 @@
+name: Validate static app
+
+on:
+  push:
+    branches: [main, permission-test]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate HTML IDs and inline JavaScript
+        run: node scripts/validate-html.cjs

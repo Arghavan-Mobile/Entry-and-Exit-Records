@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>پنل مدیر</title>
+<title>پنل مدیر | موبایل ارغوان</title>
 <link rel="icon" href="logo.png">
 <style>
 :root{--b:#292486;--bg:#eceaf7;--t:#1b1a33;--m:#68668a;--er:#b3261e;--ok:#0e7a4b;--ln:#dedcf0}
@@ -73,14 +73,14 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
   </section>
 
   <section id="v-noacc" class="box" hidden>
-    <p class="er">این حساب اجازهٔ ورود به پنل مدیر را ندارد.</p>
+    <p class="er" id="noaccmsg">این حساب اجازهٔ ورود به پنل مدیر را ندارد.</p>
     <button class="g" id="out1">خروج</button>
   </section>
 
   <section id="v-app" hidden>
     <div class="row">
       <div class="tabs">
-        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button>
+        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button><button id="t5" class="g">گزارش و بررسی</button><button id="t6" class="g">تنظیمات</button>
       </div>
       <span style="flex:1"></span><button class="g" id="out2">خروج</button>
     </div>
@@ -113,6 +113,65 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <button>تغییر رمز</button>
       </form>
     </div>
+    <div id="p4" hidden>
+      <h2>دعوت مدیر فروشگاه</h2>
+      <p class="m">فقط مدیران احراز هویت‌شده می‌توانند از این بخش برای دعوت مدیر عملیاتی جدید استفاده کنند. نقش مالک از این مسیر قابل ایجاد یا تغییر نیست.</p>
+      <form id="fInvite" class="row">
+        <input id="im" type="email" placeholder="ایمیل مدیر جدید" autocomplete="email" required dir="ltr">
+        <button id="ib">ارسال دعوت</button>
+      </form>
+      <p class="s" id="imsg"></p>
+      <div id="ownerAssign" hidden>
+        <h2>تعیین مدیر برای حساب موجود</h2>
+        <p class="m">اگر مدیر فروشگاه از قبل حساب کاربری تأییدشده دارد، مالک می‌تواند ایمیل همان حساب را به نقش مدیر فروشگاه متصل کند.</p>
+        <form id="fAssign" class="row">
+          <input id="ae" type="email" placeholder="ایمیل حساب موجود مدیر" required dir="ltr">
+          <button class="g">تعیین مدیر</button>
+        </form>
+        <p class="s" id="aemsg"></p>
+        <div class="tw" style="margin-top:12px">
+          <h2 style="padding:0 10px">مدیران فعال</h2>
+          <div class="row" style="padding:0 10px"><button type="button" class="g" id="refreshManagers">به‌روزرسانی فهرست</button></div>
+          <p class="s" id="managerMsg"></p>
+          <table><tbody id="managerRows"><tr><td class="m">برای نمایش فهرست، به‌روزرسانی را بزن.</td></tr></tbody></table>
+        </div>
+        <div class="tw" style="margin-top:12px">
+          <h2 style="padding:0 10px">دعوت‌های مدیران</h2>
+          <table><tbody id="inviteRows"><tr><td class="m">برای نمایش دعوت‌ها، فهرست را به‌روزرسانی کن.</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+    <div id="p5" hidden>
+      <h2>گزارش و بررسی حضور و غیاب</h2>
+      <div class="row">
+        <label>از تاریخ <input id="reportFrom" type="date"></label>
+        <label>تا تاریخ <input id="reportTo" type="date"></label>
+        <select id="reportEmployee" style="font:inherit;padding:10px;border:1px solid var(--ln);border-radius:10px">
+          <option value="">همه کارکنان</option>
+        </select>
+        <button type="button" id="loadReport">نمایش گزارش</button>
+        <button type="button" class="g" id="exportReport">خروجی CSV</button>
+      </div>
+      <p class="s" id="reportMsg"></p>
+      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+      <h2>درخواست‌های اصلاح در انتظار بررسی</h2>
+      <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
+      <p class="s" id="requestMsg"></p>
+      <div class="tw"><table><thead><tr><th>کارمند و دلیل</th><th>زمان فعلی</th><th>زمان درخواستی</th><th>عملیات</th></tr></thead><tbody id="requestRows"></tbody></table></div>
+    </div>
+    <div id="p6" hidden>
+      <h2>تنظیمات سامانه</h2>
+      <p class="m">تغییر این مقادیر روی ثبت ورود و خروج و محدودیت تلاش PIN اثر می‌گذارد. همه تغییرات با نام مدیر در گزارش ممیزی ثبت می‌شوند.</p>
+      <form id="fSettings" class="box" style="max-width:520px;margin:0">
+        <label>نام فروشگاه<input id="setShop" maxlength="100" required></label>
+        <label>حداقل فاصله بین دو اسکن (دقیقه)<input id="setGap" type="number" min="0" max="60" required></label>
+        <label>حداکثر طول شیفت باز (ساعت)<input id="setShift" type="number" min="1" max="48" required></label>
+        <label>حداکثر تلاش PIN اشتباه<input id="setAttempts" type="number" min="3" max="20" required></label>
+        <label>مدت قفل پس از خطا (دقیقه)<input id="setLock" type="number" min="1" max="1440" required></label>
+        <p class="s" id="settingsMsg"></p>
+        <button>ذخیره تنظیمات</button>
+      </form>
+    </div>
   </section>
 </main>
 <div id="cards"></div>
@@ -129,7 +188,8 @@ const say = (id, t, ok) => { const e = $(id); e.textContent = t; e.className = '
 const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fa2en = s => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 const fe = m => /invalid_pin/.test(m) ? 'پین باید ۴ تا ۶ رقم باشد.' : /not_authorized/.test(m) ? 'دسترسی ندارید.' : 'انجام نشد: ' + m;
-let rec = location.hash.includes('type=recovery'), emps = [];
+let rec = location.hash.includes('type=recovery') || location.hash.includes('type=invite'), emps = [];
+if (rec) view('new');
 
 // ---------- ورود و رمز عبور ----------
 if (location.hash.includes('error')) say('amsg', 'لینک منقضی یا نامعتبر است. دوباره «فراموشی رمز» را بزن.');
@@ -160,7 +220,7 @@ async function setPw(pw, id) {
 }
 $('fNew').onsubmit = async e => {
   e.preventDefault();
-  if (await setPw($('np').value, 'nmsg')) { rec = false; history.replaceState(null, '', location.pathname); boot(); }
+  if (await setPw($('np').value, 'nmsg')) { rec = false; history.replaceState(null, '', location.pathname + location.search); boot(); }
 };
 $('fChg').onsubmit = async e => {
   e.preventDefault();
@@ -169,17 +229,164 @@ $('fChg').onsubmit = async e => {
 $('out1').onclick = $('out2').onclick = () => sb.auth.signOut();
 
 async function boot() {
-  const {data} = await sb.rpc('is_admin');
-  if (!data) { view('noacc'); return; }
-  const {data: u} = await sb.auth.getUser();
+  const params = new URLSearchParams(location.search);
+  if (params.get('accept-manager-invite') === '1') {
+    const {error: claimError} = await sb.rpc('claim_store_manager_invite');
+    history.replaceState(null, '', location.pathname);
+    if (claimError) {
+      $('noaccmsg').textContent = 'پذیرش دعوت مدیر انجام نشد. مطمئن شو با همان ایمیل دعوت‌شده و ایمیل تأییدشده وارد شده‌ای. (' + claimError.message + ')';
+      view('noacc'); return;
+    }
+  }
+
+  const {data: allowed, error: accessError} = await sb.rpc('is_admin');
+  if (accessError || !allowed) { view('noacc'); return; }
+
+  const [{data: ownerRole}, {data: managerRole}, {data: u}] = await Promise.all([
+    sb.rpc('has_app_role', {p_role: 'owner'}),
+    sb.rpc('has_app_role', {p_role: 'store_manager'}),
+    sb.auth.getUser()
+  ]);
   $('who').textContent = u && u.user ? u.user.email : '';
-  view('app'); load(); showBk();
+  const canInvite = ownerRole === true || managerRole === true;
+  $('t4').hidden = !canInvite;
+  $('ownerAssign').hidden = ownerRole !== true;
+  view('app'); load(); showBk(); loadSettings();
+  if (ownerRole === true) loadOwnerLifecycle();
 }
 
 // ---------- تب‌ها ----------
-[1, 2, 3].forEach(n => $('t' + n).onclick = () => [1, 2, 3].forEach(k => {
+[1, 2, 3, 4, 5, 6].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5, 6].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
+  if (k === n && n === 5) { loadReport(); loadCorrectionRequests(); }
 }));
+
+// ---------- دعوت مدیران عملیاتی ----------
+$('fInvite').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('im').value.trim().toLowerCase();
+  const {data: sessionData, error: sessionError} = await sb.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if (sessionError || !session) { say('imsg', 'نشست ورود معتبر نیست؛ دوباره وارد شو.'); return; }
+
+  $('ib').disabled = true;
+  say('imsg', 'در حال ارسال دعوت...', 1);
+  try {
+    const response = await fetch(C.SUPABASE_URL + '/functions/v1/invite-manager', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': C.SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({email})
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'invite_failed');
+    $('im').value = '';
+    if (result.existing_user) {
+      say('imsg', 'این ایمیل از قبل حساب کاربری دارد. از صاحب حساب بخواه با همین ایمیل وارد شود و سپس این نشانی را باز کند: ' + result.claim_url, 1);
+    } else {
+      say('imsg', 'دعوت برای ' + email + ' ارسال شد. مدیر جدید پس از تأیید ایمیل، تعیین رمز و پذیرش دعوت فعال می‌شود.', 1);
+    }
+    if (result.audit_warning) $('imsg').textContent += ' (هشدار: ثبت ممیزی انجام نشد؛ سوابق را بررسی کن.)';
+  } catch (err) {
+    say('imsg', 'ارسال دعوت ناموفق بود: ' + (err.message || err));
+  } finally {
+    $('ib').disabled = false;
+  }
+};
+
+$('fAssign').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('ae').value.trim().toLowerCase();
+  const {error} = await sb.rpc('owner_assign_store_manager', {p_email: email});
+  if (error) { say('aemsg', 'تعیین مدیر انجام نشد: ' + error.message); return; }
+  $('ae').value = '';
+  say('aemsg', 'حساب تأییدشده با نقش مدیر فروشگاه فعال شد.', 1);
+  loadOwnerLifecycle();
+};
+
+// ---------- مدیریت چرخه مدیران (فقط مالک) ----------
+function fmtDate(v) {
+  return v ? new Date(v).toLocaleString('fa-IR') : '—';
+}
+async function loadOwnerLifecycle() {
+  say('managerMsg', 'در حال دریافت اطلاعات...', 1);
+  const [{data: managers, error: managerError}, {data: invites, error: inviteError}] = await Promise.all([
+    sb.rpc('owner_list_store_managers'),
+    sb.rpc('owner_list_manager_invites')
+  ]);
+  if (managerError || inviteError) {
+    say('managerMsg', 'دریافت فهرست ناموفق بود: ' + (managerError || inviteError).message);
+    return;
+  }
+  $('managerRows').innerHTML = managers.length ? managers.map(m =>
+    '<tr><td>' + esc(m.email || 'بدون ایمیل') + '<br><small class="m">' + fmtDate(m.assigned_at) + '</small></td>' +
+    '<td class="a"><button class="g" data-manager-revoke="' + m.user_id + '">لغو دسترسی</button></td></tr>'
+  ).join('') : '<tr><td class="m">مدیر فعالی وجود ندارد.</td></tr>';
+
+  const pending = invites.filter(i => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date());
+  $('inviteRows').innerHTML = pending.length ? pending.map(i =>
+    '<tr><td>' + esc(i.invite_email) + '<br><small class="m">دعوت: ' + fmtDate(i.created_at) +
+    ' | انقضا: ' + fmtDate(i.expires_at) + '</small></td><td class="a">' +
+    '<button class="g" data-invite-revoke="' + i.invite_id + '">لغو دعوت</button></td></tr>'
+  ).join('') : '<tr><td class="m">دعوت در انتظار پذیرش وجود ندارد.</td></tr>';
+  say('managerMsg', 'فهرست مدیران و دعوت‌ها به‌روزرسانی شد.', 1);
+}
+$('refreshManagers').onclick = loadOwnerLifecycle;
+$('managerRows').onclick = async e => {
+  const b = e.target.closest('button[data-manager-revoke]');
+  if (!b) return;
+  if (!confirm('دسترسی این مدیر فوراً لغو شود؟')) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('owner_revoke_store_manager', {p_user_id: b.dataset.managerRevoke});
+  if (error) { say('managerMsg', 'لغو دسترسی انجام نشد: ' + error.message); b.disabled = false; return; }
+  say('managerMsg', 'دسترسی مدیر لغو شد.', 1);
+  loadOwnerLifecycle();
+};
+$('inviteRows').onclick = async e => {
+  const b = e.target.closest('button[data-invite-revoke]');
+  if (!b) return;
+  if (!confirm('این دعوت لغو شود؟')) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('revoke_manager_invite', {p_invite_id: b.dataset.inviteRevoke});
+  if (error) { say('managerMsg', 'لغو دعوت انجام نشد: ' + error.message); b.disabled = false; return; }
+  say('managerMsg', 'دعوت لغو شد.', 1);
+  loadOwnerLifecycle();
+};
+
+// ---------- تنظیمات ----------
+async function loadSettings() {
+  const {data, error} = await sb.from('settings')
+    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes')
+    .eq('id', 1).single();
+  if (error) { say('settingsMsg', 'دریافت تنظیمات ناموفق بود: ' + error.message); return; }
+  $('setShop').value = data.shop_name || '';
+  $('setGap').value = data.min_gap_minutes;
+  $('setShift').value = data.max_shift_hours;
+  $('setAttempts').value = data.max_pin_attempts;
+  $('setLock').value = data.lock_minutes;
+}
+$('fSettings').onsubmit = async e => {
+  e.preventDefault();
+  const args = {
+    p_shop_name: $('setShop').value.trim(),
+    p_min_gap_minutes: Number($('setGap').value),
+    p_max_shift_hours: Number($('setShift').value),
+    p_max_pin_attempts: Number($('setAttempts').value),
+    p_lock_minutes: Number($('setLock').value)
+  };
+  if (args.p_shop_name.length < 2 || args.p_min_gap_minutes < 0 || args.p_min_gap_minutes > 60 ||
+      args.p_max_shift_hours < 1 || args.p_max_shift_hours > 48 ||
+      args.p_max_pin_attempts < 3 || args.p_max_pin_attempts > 20 ||
+      args.p_lock_minutes < 1 || args.p_lock_minutes > 1440) {
+    say('settingsMsg', 'یکی از مقادیر خارج از محدوده مجاز است.'); return;
+  }
+  const {error} = await sb.rpc('admin_update_settings', args);
+  if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
+  say('settingsMsg', 'تنظیمات ذخیره شد و در گزارش ممیزی ثبت شد.', 1);
+};
 
 // ---------- پرسنل ----------
 async function load() {
@@ -219,6 +426,136 @@ $('tb').onclick = async e => {
   say('emsg', r.error ? fe(r.error.message) : 'انجام شد.', !r.error); load();
 };
 $('pAll').onclick = () => cards(emps.filter(e => e.active));
+
+// ---------- گزارش و مرکز بررسی حضور ----------
+let reportCache = [];
+const reportDateKey = v => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date(v));
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  return p.year + '-' + p.month + '-' + p.day;
+};
+const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
+  timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short'
+}) : '—';
+function fillReportEmployees() {
+  $('reportEmployee').innerHTML = '<option value="">همه کارکنان</option>' +
+    emps.map(e => '<option value="' + e.id + '">' + esc(e.full_name) + '</option>').join('');
+}
+async function loadReport() {
+  say('reportMsg', 'در حال دریافت سوابق...', 1);
+  try {
+    const [records] = await Promise.all([all('attendance_records', '*')]);
+    reportCache = records;
+    fillReportEmployees();
+    const from = $('reportFrom').value, to = $('reportTo').value, empId = $('reportEmployee').value;
+    if (from && to && from > to) { say('reportMsg', 'تاریخ شروع نباید بعد از تاریخ پایان باشد.'); return; }
+    const filtered = records.filter(r => {
+      const day = reportDateKey(r.check_in);
+      return (!from || day >= from) && (!to || day <= to) && (!empId || r.employee_id === empId);
+    }).sort((a,b) => new Date(b.check_in) - new Date(a.check_in));
+    const names = new Map(emps.map(e => [e.id, e.full_name]));
+    $('reportRows').innerHTML = filtered.length ? filtered.map(r => {
+      const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
+      const duration = mins === null ? 'باز' : Math.floor(mins/60) + 'ساعت و ' + (mins%60) + 'دقیقه';
+      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی');
+      return '<tr><td>' + esc(names.get(r.employee_id) || 'کارمند حذف‌شده') + '</td><td>' +
+        reportFaTime(r.check_in) + '</td><td>' + reportFaTime(r.check_out) + '</td><td>' +
+        duration + '</td><td>' + status + '</td><td class="a" data-record="' + r.id + '">' +
+        '<button class="g" data-report-action="edit">اصلاح</button>' +
+        '<button class="g" data-report-action="delete">حذف</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
+    say('reportMsg', 'تعداد رکوردهای نمایش‌داده‌شده: ' + filtered.length, 1);
+    reportCache = filtered;
+  } catch (err) {
+    say('reportMsg', 'گزارش بارگذاری نشد: ' + (err.message || err));
+  }
+}
+async function loadCorrectionRequests() {
+  say('requestMsg', 'در حال دریافت درخواست‌ها...', 1);
+  const {data, error} = await sb.rpc('manager_list_attendance_requests');
+  if (error) { say('requestMsg', 'دریافت درخواست‌ها ناموفق بود: ' + error.message); return; }
+  $('requestRows').innerHTML = data.length ? data.map(r =>
+    '<tr><td>' + esc(r.employee_name) + '<br><small class="m">' + esc(r.request_reason) + '</small></td>' +
+    '<td>ورود: ' + reportFaTime(r.original_data && r.original_data.check_in) +
+    '<br>خروج: ' + reportFaTime(r.original_data && r.original_data.check_out) + '</td>' +
+    '<td>ورود: ' + reportFaTime(r.requested_check_in) +
+    '<br>خروج: ' + reportFaTime(r.requested_check_out) + '</td>' +
+    '<td class="a" data-request="' + r.request_id + '">' +
+    '<button class="g" data-review="approved">تأیید</button>' +
+    '<button class="g" data-review="rejected">رد</button></td></tr>'
+  ).join('') : '<tr><td colspan="4" class="m">درخواست در انتظاری وجود ندارد.</td></tr>';
+  say('requestMsg', 'تعداد درخواست‌های در انتظار: ' + data.length, 1);
+}
+$('refreshRequests').onclick = loadCorrectionRequests;
+$('requestRows').onclick = async e => {
+  const b = e.target.closest('button[data-review]'); if (!b) return;
+  const requestId = b.parentNode.dataset.request;
+  const decision = b.dataset.review;
+  const reason = prompt(decision === 'approved'
+    ? 'دلیل تأیید را بنویس (حداقل ۳ حرف):'
+    : 'دلیل رد درخواست را بنویس (حداقل ۳ حرف):');
+  if (!reason || reason.trim().length < 3) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('manager_review_attendance_request', {
+    p_request_id: requestId, p_decision: decision, p_review_reason: reason.trim()
+  });
+  if (error) { say('requestMsg', 'ثبت تصمیم ناموفق بود: ' + error.message); b.disabled = false; return; }
+  say('requestMsg', decision === 'approved' ? 'درخواست تأیید شد و رکورد اصلاح شد.' : 'درخواست رد شد.', 1);
+  loadCorrectionRequests(); loadReport();
+};
+$('loadReport').onclick = loadReport;
+$('reportEmployee').onchange = loadReport;
+$('reportRows').onclick = async e => {
+  const b = e.target.closest('button[data-report-action]'); if (!b) return;
+  const row = reportCache.find(x => x.id === b.parentNode.dataset.record); if (!row) return;
+  if (b.dataset.reportAction === 'delete') {
+    const reason = prompt('دلیل حذف این رکورد را بنویس (حداقل ۳ حرف):');
+    if (!reason || reason.trim().length < 3) return;
+    if (!confirm('رکورد حذف شود؟ این عملیات در سابقه ممیزی ثبت می‌شود.')) return;
+    b.disabled = true;
+    const {error} = await sb.rpc('admin_delete_record', {p_record: row.id, p_reason: reason.trim()});
+    if (error) { say('reportMsg', 'حذف ناموفق بود: ' + error.message); b.disabled = false; return; }
+    say('reportMsg', 'رکورد حذف شد و در ممیزی ثبت شد.', 1); loadReport(); return;
+  }
+  const currentIn = row.check_in ? new Date(row.check_in).toISOString() : '';
+  const currentOut = row.check_out ? new Date(row.check_out).toISOString() : '';
+  const checkIn = prompt('زمان ورود جدید با قالب ISO-8601 و منطقه زمانی (مثال: 2026-11-18T08:30:00+03:30):', currentIn);
+  if (checkIn === null) return;
+  const checkOut = prompt('زمان خروج جدید با قالب ISO-8601؛ برای ورود باز خالی بگذار:', currentOut);
+  if (checkOut === null) return;
+  const reason = prompt('دلیل اصلاح را بنویس (حداقل ۳ حرف):');
+  if (!reason || reason.trim().length < 3) return;
+  const inDate = new Date(checkIn), outDate = checkOut.trim() ? new Date(checkOut) : null;
+  if (Number.isNaN(inDate.getTime()) || (outDate && Number.isNaN(outDate.getTime())) ||
+      (outDate && outDate <= inDate)) {
+    say('reportMsg', 'زمان واردشده معتبر نیست یا خروج قبل از ورود است.'); return;
+  }
+  b.disabled = true;
+  const {error} = await sb.rpc('admin_edit_record', {
+    p_record: row.id, p_check_in: inDate.toISOString(),
+    p_check_out: outDate ? outDate.toISOString() : null, p_reason: reason.trim()
+  });
+  if (error) { say('reportMsg', 'اصلاح ناموفق بود: ' + error.message); b.disabled = false; return; }
+  say('reportMsg', 'رکورد اصلاح شد و در ممیزی ثبت شد.', 1); loadReport();
+};
+$('exportReport').onclick = () => {
+  if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
+  const names = new Map(emps.map(e => [e.id, e.full_name]));
+  const rows = [['employee','check_in','check_out','needs_review','edited'], ...reportCache.map(r => [
+    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited
+  ])];
+  const csvCell = v => {
+    const raw = String(v ?? '');
+    const safe = /^[=+@-]/.test(raw) ? "'" + raw : raw;
+    return '"' + safe.replace(/"/g,'""') + '"';
+  };
+  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8'}));
+  const a = document.createElement('a'); a.href = url; a.download = 'arghavan-attendance.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 function cards(list) {
   if (typeof qrcode === 'undefined') { say('emsg', 'کتابخانهٔ QR بارگذاری نشد. اینترنت را بررسی کن.'); return; }
   $('cards').innerHTML = list.map(e => {
