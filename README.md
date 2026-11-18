@@ -10,6 +10,7 @@
 - [نقشه راه توسعه](docs/ROADMAP.md)
 - [گزارش امنیت و وضعیت فعلی](docs/SECURITY.md)
 - [طراحی نقش‌ها و سطح دسترسی](docs/ACCESS-CONTROL.md)
+- [Migration پیشنهادی نقش‌ها](supabase/migrations/202611190001_owner_manager_roles.sql)
 - [تاریخچه تغییرات](CHANGELOG.md)
 
 ## وضعیت توسعه
