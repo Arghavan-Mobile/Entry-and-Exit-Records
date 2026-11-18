@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ثبت ورود و خروج</title>
+<link rel="icon" href="logo.png">
+<style>
+:root{--b:#292486;--bg:#eceaf7;--c:#fff;--t:#1b1a33;--m:#68668a;--ok:#0e7a4b;--out:#a14a00;--er:#b3261e;--ln:#dedcf0}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{font-family:Tahoma,"Segoe UI",sans-serif;background:var(--bg);color:var(--t);display:flex;align-items:center;justify-content:center;padding:16px}
+main{width:100%;max-width:560px;background:var(--c);border-radius:28px;padding:28px 24px;text-align:center;border-top:8px solid var(--b)}
+.logo{width:84px;height:auto;display:block;margin:0 auto}
+h1{font-size:19px;margin:10px 0 0}
+h2{font-size:18px;margin:8px 0}
+section{padding-top:8px}
+.clock{font-size:52px;font-weight:700;color:var(--b);margin:18px 0 2px;direction:ltr}
+.m{color:var(--m)}
+.hint{font-size:18px;margin:18px 0 8px}
+.err{color:var(--er);min-height:24px;margin:6px 0}
+.row{display:flex;gap:10px;justify-content:center;align-items:center;margin:14px 0;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--b);border-radius:12px;padding:12px 22px;cursor:pointer;background:var(--b);color:#fff}
+button.g{background:#fff;color:var(--b);border-color:var(--ln)}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid #8f8bd6;outline-offset:2px}
+.pin{font:inherit;font-size:30px;letter-spacing:10px;text-align:center;width:210px;padding:10px;border:2px solid var(--ln);border-radius:12px;direction:ltr}
+.big{font-size:34px;font-weight:700;margin:18px 0 6px}
+.in{color:var(--ok)}.outc{color:var(--out)}
+#rd{white-space:pre-line;line-height:1.9}
+.tw{max-height:46vh;overflow:auto;border:1px solid var(--ln);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{padding:9px 6px;border-bottom:1px solid var(--ln)}
+th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
+.tag{font-size:12px;color:var(--out)}
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="logo.png" alt="ارغوان">
+  <h1 id="shop">ثبت ورود و خروج</h1>
+
+  <section id="home">
+    <div class="clock" id="clk"></div>
+    <div class="m" id="dt"></div>
+    <p class="hint" id="hint"></p>
+    <p class="err" id="hmsg"></p>
+    <div class="row">
+      <button id="mClock">ثبت ورود / خروج</button>
+      <button id="mRec" class="g">سوابق من</button>
+    </div>
+  </section>
+
+  <section id="pinv" hidden>
+    <p class="hint">پین خود را وارد کنید</p>
+    <input id="pin" class="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="پین">
+    <p class="err" id="perr"></p>
+    <div class="row"><button id="ok">تأیید</button><button id="cancel" class="g">انصراف</button></div>
+  </section>
+
+  <section id="res" hidden>
+    <div class="big" id="rt"></div>
+    <h2 id="rn"></h2>
+    <p id="rd"></p>
+  </section>
+
+  <section id="rec" hidden>
+    <h2 id="rname"></h2>
+    <div class="row">
+      <button class="g" id="pv">ماه قبل</button>
+      <b id="mt"></b>
+      <button class="g" id="nx">ماه بعد</button>
+    </div>
+    <div class="tw"><table id="tb"></table></div>
+    <p id="sum"></p>
+    <button id="out">خروج از این صفحه</button>
+  </section>
+</main>
+
+<input id="scan" autocomplete="off" aria-hidden="true" tabindex="-1" style="position:fixed;left:-999px;opacity:0">
+
+<script src="config.js"></script>
+<script>
+const C = window.APP_CONFIG || {};
+const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
+const $ = id => document.getElementById(id);
+const V = {home: $('home'), pin: $('pinv'), res: $('res'), rec: $('rec')};
+let mode = 'clock', qr = '', pass = '', mstart = 0, tmr;
+
+// ---------- ابزارها ----------
+const fa = n => Number(n).toLocaleString('fa-IR');
+const tm = t => new Date(t).toLocaleTimeString('fa-IR', {timeZone: TZ, hour: '2-digit', minute: '2-digit'});
+const dayFmt = t => new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric'}).format(new Date(t));
+const dur = m => { m = Math.round(m); const h = Math.floor(m / 60); return (h ? fa(h) + ' ساعت و ' : '') + fa(m % 60) + ' دقیقه'; };
+const fa2en = s => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const midnight = t => Math.floor((t + OFF) / D) * D - OFF;
+const pDay = t => +new Intl.DateTimeFormat('en-US-u-ca-persian', {day: 'numeric', timeZone: TZ}).format(t);
+const monthStart = t => { t = midnight(t); while (pDay(t) !== 1) t -= D; return t; };
+const nextMonth = t => { t += 27 * D; while (pDay(t) !== 1) t += D; return t; };
+
+async function rpc(fn, args) {
+  const r = await fetch(C.SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', apikey: C.SUPABASE_KEY},
+    body: JSON.stringify(args)
+  });
+  if (!r.ok) throw new Error('http ' + r.status);
+  return r.json();
+}
+
+// ---------- صفحه‌ها ----------
+function idle(s) { clearTimeout(tmr); if (s) tmr = setTimeout(() => home(), s * 1000); }
+function show(n) {
+  for (const k in V) V[k].hidden = k !== n;
+  if (n === 'pin') $('pin').focus();
+}
+function setMode(m) {
+  mode = m;
+  $('mClock').className = m === 'clock' ? '' : 'g';
+  $('mRec').className = m === 'rec' ? '' : 'g';
+  $('hint').textContent = m === 'clock'
+    ? 'کارت QR خود را اسکن کنید تا ورود یا خروجتان ثبت شود'
+    : 'کارت QR خود را اسکن کنید تا سوابقتان نمایش داده شود';
+  $('scan').focus();
+}
+function home(msg) {
+  qr = ''; pass = ''; $('scan').value = '';
+  show('home'); setMode('clock');
+  $('hmsg').textContent = msg || '';
+  idle(msg ? 8 : 0);
+}
+
+// ---------- ساعت ----------
+setInterval(() => {
+  const n = new Date();
+  $('clk').textContent = n.toLocaleTimeString('fa-IR', {timeZone: TZ});
+  $('dt').textContent = new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}).format(n);
+  if (!V.home.hidden && document.activeElement !== $('scan')) $('scan').focus();
+}, 1000);
+
+// ---------- اسکن QR (بارکدخوان مثل کیبورد تایپ می‌کند و Enter می‌زند) ----------
+$('scan').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const v = e.target.value.trim().toLowerCase();
+  e.target.value = '';
+  if (!/^[0-9a-f]{20}$/.test(v)) {
+    $('hmsg').textContent = 'کارت خوانده نشد. زبان کیبورد باید روی انگلیسی باشد (Win + Space).';
+    return;
+  }
+  qr = v; $('pin').value = ''; $('perr').textContent = '';
+  show('pin'); idle(30);
+});
+document.addEventListener('click', () => { if (!V.home.hidden) $('scan').focus(); });
+$('mClock').onclick = () => setMode('clock');
+$('mRec').onclick = () => setMode('rec');
+$('cancel').onclick = () => home();
+
+// ---------- ارسال پین ----------
+async function submitPin() {
+  const pin = fa2en($('pin').value.trim());
+  if (!/^\d{4,6}$/.test(pin)) { $('perr').textContent = 'پین باید ۴ تا ۶ رقم باشد.'; return; }
+  $('ok').disabled = true; idle(30);
+  try {
+    if (mode === 'clock') {
+      const r = await rpc('kiosk_scan', {p_qr: qr, p_pin: pin});
+      r.ok ? done(r) : fail(r);
+    } else {
+      pass = pin; mstart = monthStart(Date.now());
+      await loadRec();
+    }
+  } catch (e) {
+    $('perr').textContent = 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کنید.';
+  }
+  $('ok').disabled = false;
+}
+$('ok').onclick = submitPin;
+$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); });
+
+function fail(r) {
+  const E = {
+    invalid_card: 'کارت نامعتبر یا غیرفعال است.',
+    locked: 'به‌دلیل پین اشتباه، این کارت چند دقیقه قفل شد. بعداً دوباره امتحان کنید یا به مدیر بگویید.',
+    too_soon: 'ثبت قبلی شما همین چند لحظه پیش انجام شد.'
+  };
+  if (r.error === 'wrong_pin') {
+    $('pin').value = ''; $('pin').focus();
+    $('perr').textContent = 'پین اشتباه است. ' + fa(r.attempts_left) + ' تلاش باقی مانده.';
+    return;
+  }
+  home((r.name ? r.name + ': ' : '') + (E[r.error] || 'خطای نامشخص. دوباره تلاش کنید.'));
+}
+
+function done(r) {
+  const ci = r.action === 'check_in';
+  $('rt').textContent = ci ? 'ورود ثبت شد ✓' : 'خروج ثبت شد ✓';
+  $('rt').className = 'big ' + (ci ? 'in' : 'outc');
+  $('rn').textContent = r.name;
+  $('rd').textContent = 'ساعت ' + tm(r.time) + (ci ? '' : '\nمدت کار: ' + dur(r.minutes)) +
+    (r.warning ? '\nخروج قبلی شما ثبت نشده بود و مدیر آن را بررسی می‌کند.' : '');
+  show('res'); idle(6);
+}
+
+// ---------- سوابق شخصی (فقط خواندنی) ----------
+async function loadRec() {
+  const next = nextMonth(mstart);
+  const r = await rpc('kiosk_my_records', {
+    p_qr: qr, p_pin: pass,
+    p_from: new Date(mstart).toISOString(), p_to: new Date(next).toISOString()
+  });
+  if (!r.ok) { fail(r); return; }
+  $('rname').textContent = r.name;
+  $('mt').textContent = new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, month: 'long', year: 'numeric'}).format(mstart + D / 2);
+  let total = 0, rows = '<tr><th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th></tr>';
+  for (const x of r.records) {
+    const d = x.check_out ? (new Date(x.check_out) - new Date(x.check_in)) / 6e4 : null;
+    if (d) total += d;
+    rows += '<tr><td>' + dayFmt(x.check_in) + '</td><td>' + tm(x.check_in) + '</td><td>' +
+      (x.check_out ? tm(x.check_out) : '—') + '</td><td>' + (d ? dur(d) : 'در حال کار') +
+      (x.edited ? '<br><span class="tag">ویرایش‌شده توسط مدیر</span>' : '') + '</td></tr>';
+  }
+  if (!r.records.length) rows += '<tr><td colspan="4" class="m">در این ماه رکوردی نیست.</td></tr>';
+  $('tb').innerHTML = rows;
+  $('sum').textContent = 'جمع کار این ماه: ' + dur(total);
+  $('nx').disabled = next > Date.now();
+  show('rec'); idle(90);
+}
+$('pv').onclick = () => { mstart = monthStart(mstart - D); loadRec().catch(() => {}); };
+$('nx').onclick = () => { mstart = nextMonth(mstart); loadRec().catch(() => {}); };
+$('out').onclick = () => home();
+
+// ---------- شروع ----------
+if (!C.SUPABASE_URL || C.SUPABASE_URL.includes('PASTE')) {
+  $('hmsg').textContent = 'فایل config.js هنوز تنظیم نشده است.';
+} else {
+  rpc('kiosk_info', {}).then(i => { if (i && i.shop_name) $('shop').textContent = i.shop_name; }).catch(() => {});
+}
+home($('hmsg').textContent);
+</script>
+</body>
+</html>
