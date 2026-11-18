@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ثبت ورود و خروج</title>
+<title>موبایل ارغوان | ثبت ورود و خروج</title>
 <link rel="icon" href="logo.png">
 <style>
 :root{--b:#292486;--bg:#eceaf7;--c:#fff;--t:#1b1a33;--m:#68668a;--ok:#0e7a4b;--out:#a14a00;--er:#b3261e;--ln:#dedcf0}
@@ -38,7 +38,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
 <body>
 <main>
   <img class="logo" src="logo.png" alt="ارغوان">
-  <h1 id="shop">ثبت ورود و خروج</h1>
+  <h1 id="shop">موبایل ارغوان</h1>
 
   <section id="home">
     <div class="clock" id="clk"></div>
@@ -232,7 +232,7 @@ $('out').onclick = () => home();
 if (!C.SUPABASE_URL || C.SUPABASE_URL.includes('PASTE')) {
   $('hmsg').textContent = 'فایل config.js هنوز تنظیم نشده است.';
 } else {
-  rpc('kiosk_info', {}).then(i => { if (i && i.shop_name) $('shop').textContent = i.shop_name; }).catch(() => {});
+  // عنوان برند ثابت می‌ماند و از تنظیمات سرور بازنویسی نمی‌شود.
 }
 home($('hmsg').textContent);
 </script>
