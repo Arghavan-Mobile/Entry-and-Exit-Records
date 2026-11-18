@@ -94,6 +94,7 @@ const tm = t => new Date(t).toLocaleTimeString('fa-IR', {timeZone: TZ, hour: '2-
 const dayFmt = t => new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric'}).format(new Date(t));
 const dur = m => { m = Math.round(m); const h = Math.floor(m / 60); return (h ? fa(h) + ' ساعت و ' : '') + fa(m % 60) + ' دقیقه'; };
 const fa2en = s => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const htmlEsc = s => String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
 const midnight = t => Math.floor((t + OFF) / D) * D - OFF;
 const pDay = t => +new Intl.DateTimeFormat('en-US-u-ca-persian', {day: 'numeric', timeZone: TZ}).format(t);
 const monthStart = t => { t = midnight(t); while (pDay(t) !== 1) t -= D; return t; };
@@ -220,13 +221,14 @@ async function loadRec() {
     const state = x.has_pending_request ? 'در انتظار بررسی' :
       (x.latest_request_status === 'approved' ? 'درخواست قبلی تأیید شد' :
       (x.latest_request_status === 'rejected' ? 'درخواست قبلی رد شد' : ''));
+    const review = x.latest_review_reason ? '<br><small class="m">' + htmlEsc(x.latest_review_reason) + '</small>' : '';
     rows += '<tr><td>' + dayFmt(x.check_in) + '</td><td>' + tm(x.check_in) + '</td><td>' +
       (x.check_out ? tm(x.check_out) : '—') + '</td><td>' + (d ? dur(d) : 'در حال کار') +
       (x.edited ? '<br><span class="tag">ویرایش‌شده</span>' : '') +
       (x.needs_review ? '<br><span class="tag">نیازمند بررسی</span>' : '') + '</td><td>' +
       (x.has_pending_request ? '<span class="tag">' + state + '</span>' :
       '<button class="g" data-correction="' + x.id + '">درخواست اصلاح</button>' +
-      (state ? '<br><small class="m">' + state + '</small>' : '')) + '</td></tr>';
+      (state ? '<br><small class="m">' + state + '</small>' : '')) + review + '</td></tr>';
   }
   if (!r.records.length) rows += '<tr><td colspan="5" class="m">در این ماه رکوردی نیست.</td></tr>';
   $('tb').innerHTML = rows;
