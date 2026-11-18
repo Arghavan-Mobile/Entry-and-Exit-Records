@@ -8,10 +8,10 @@ let failed = false;
 
 for (const file of files) {
   const html = fs.readFileSync(file, 'utf8');
-  const ids = [...html.matchAll(/\\bid="([^"]+)"/g)].map(match => match[1]);
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
   const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
   const idSet = new Set(ids);
-  const refs = [...html.matchAll(/\\$\\('([^']+)'\\)/g)].map(match => match[1]);
+  const refs = [...html.matchAll(/\$\('([^']+)'\)/g)].map(match => match[1]);
   const missing = [...new Set(refs.filter(id => !idSet.has(id)))];
 
   if (duplicates.length || missing.length) {
@@ -21,7 +21,7 @@ for (const file of files) {
     if (missing.length) console.error('Missing IDs: ' + missing.join(', '));
   }
 
-  const scripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)]
+  const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
     .map(match => match[1])
     .filter(source => source.trim().length > 0);
 
