@@ -88,7 +88,8 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
     </div>
 
     <div id="p1">
-      <h2>افزودن کارمند</h2>
+      <h2>شروع کار: ثبت مشخصات پرسنل</h2>
+      <p class="m">نام و نام خانوادگی هر همکار و یک PIN شخصی ۴ تا ۶ رقمی وارد کن. سامانه برای هر نفر کارت QR می‌سازد؛ سپس از فهرست پرسنل کارت‌ها را چاپ و تحویل بده.</p>
       <form id="fAdd" class="row">
         <input id="an" placeholder="نام و نام خانوادگی" required>
         <input id="ap" placeholder="پین ۴ تا ۶ رقمی" inputmode="numeric" maxlength="6" required dir="ltr">
@@ -217,7 +218,7 @@ $('toForgot').onclick = () => view('forgot');
 $('toLogin').onclick = () => view('auth');
 $('fForgot').onsubmit = async e => {
   e.preventDefault();
-  const {error} = await sb.auth.resetPasswordForEmail($('fe').value.trim(), {redirectTo: location.origin + location.pathname});
+  const {error} = await sb.auth.resetPasswordForEmail($('fe').value.trim(), {redirectTo: location.origin + location.pathname + location.search});
   error ? say('fmsg', 'ارسال ایمیل ممکن نشد: ' + error.message)
         : say('fmsg', 'اگر این ایمیل ثبت شده باشد، لینک تغییر رمز برایش ارسال شد.', 1);
 };
