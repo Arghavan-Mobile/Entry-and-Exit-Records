@@ -154,7 +154,32 @@ begin
   on conflict (user_id) do update
     set role = 'owner';
 end
-$$;
+$;
+
+-- Preserve the existing second administrator as the initial store manager.
+do $
+declare
+  v_manager_id uuid;
+begin
+  select u.id
+    into v_manager_id
+  from auth.users u
+  where lower(u.email) = 'ahoora7000@gmail.com'
+    and u.email_confirmed_at is not null;
+
+  if v_manager_id is null then
+    raise exception 'confirmed_initial_manager_auth_user_not_found';
+  end if;
+
+  insert into public.app_user_roles(user_id, role)
+  values (v_manager_id, 'store_manager')
+  on conflict (user_id) do update
+    set role = case
+      when public.app_user_roles.role = 'owner' then 'owner'::public.app_role
+      else 'store_manager'::public.app_role
+    end;
+end
+$;
 
 comment on table public.app_user_roles is
   'Application roles keyed by Supabase Auth user UUID. Only controlled server-side flows may modify this table.';
