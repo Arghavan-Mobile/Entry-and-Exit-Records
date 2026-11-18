@@ -20,6 +20,7 @@ section{padding-top:8px}
 .hint{font-size:18px;margin:18px 0 8px}
 .err{color:var(--er);min-height:24px;margin:6px 0}
 .row{display:flex;gap:10px;justify-content:center;align-items:center;margin:14px 0;flex-wrap:wrap}
+.staff-access{border-top:1px solid var(--ln);margin-top:22px;padding-top:16px}.staff-access p{font-size:14px;color:var(--m);margin:6px 0 12px}.staff-access button{min-width:145px}
 button{font:inherit;border:1px solid var(--b);border-radius:12px;padding:12px 22px;cursor:pointer;background:var(--b);color:#fff}
 button.g{background:#fff;color:var(--b);border-color:var(--ln)}
 button:disabled{opacity:.4;cursor:default}
@@ -48,6 +49,13 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     <div class="row">
       <button id="mClock">ثبت ورود / خروج</button>
       <button id="mRec" class="g">سوابق من</button>
+    </div>
+    <div class="staff-access">
+      <p>ورود به پنل مدیریت فروشگاه</p>
+      <div class="row">
+        <button id="ownerLogin">ورود مالک</button>
+        <button id="managerLogin" class="g">ورود مدیر</button>
+      </div>
     </div>
   </section>
 
@@ -155,6 +163,8 @@ $('scan').addEventListener('keydown', e => {
 document.addEventListener('click', () => { if (!V.home.hidden) $('scan').focus(); });
 $('mClock').onclick = () => setMode('clock');
 $('mRec').onclick = () => setMode('rec');
+$('ownerLogin').onclick = () => { location.href = 'admin.html?role=owner'; };
+$('managerLogin').onclick = () => { location.href = 'admin.html?role=store_manager'; };
 $('cancel').onclick = () => home();
 
 // ---------- ارسال پین ----------
