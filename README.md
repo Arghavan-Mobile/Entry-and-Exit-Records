@@ -17,6 +17,7 @@
 - [Migration نقش‌ها](supabase/migrations/20261118184001_owner_manager_roles.sql)
 - [Migration مدیریت چرخه مدیران](supabase/migrations/20261118184342_manager_lifecycle_controls.sql)
 - [آزمون‌های مجوز نقش‌ها](supabase/tests/role_access.sql)
+- [آزمون توابع مدیریت سوابق](supabase/tests/admin_record_rpcs.sql)
 - [تاریخچه تغییرات](CHANGELOG.md)
 
 ## وضعیت انتشار
