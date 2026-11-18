@@ -162,9 +162,9 @@ comment on table public.manager_invites is
   'Pending store-manager invitations created by the authenticated invite-manager Edge Function.';
 
 
--- Preserve the existing admin panel and RPCs during the role-system rollout.
--- New owner/store_manager accounts are recognized as administrators for the
--- current operational RPCs. Fine-grained owner-only actions are separate.
+-- Switch the application to explicit role-based authorization.
+-- Legacy rows in public.admins are NOT implicitly trusted; existing accounts
+-- must be explicitly assigned a role by the owner before they retain panel access.
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -172,18 +172,12 @@ stable
 security definer
 set search_path = ''
 as $$
-  select
-    exists (
-      select 1
-      from public.app_user_roles r
-      where r.user_id = (select auth.uid())
-        and r.role in ('owner'::public.app_role, 'store_manager'::public.app_role)
-    )
-    or exists (
-      select 1
-      from public.admins a
-      where a.email = lower(coalesce(auth.jwt() ->> 'email', ''))
-    );
+  select exists (
+    select 1
+    from public.app_user_roles r
+    where r.user_id = (select auth.uid())
+      and r.role in ('owner'::public.app_role, 'store_manager'::public.app_role)
+  );
 $$;
 
 revoke all on function public.is_admin() from public, anon;
