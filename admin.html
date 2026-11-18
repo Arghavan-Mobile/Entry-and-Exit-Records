@@ -123,13 +123,18 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
     </div>
 
     <div id="p1">
-      <h2>شروع کار: ثبت مشخصات پرسنل</h2>
-      <p class="m">نام و نام خانوادگی هر همکار و یک PIN شخصی ۴ تا ۶ رقمی وارد کن. سامانه برای هر نفر کارت QR می‌سازد؛ سپس از فهرست پرسنل کارت‌ها را چاپ و تحویل بده.</p>
-      <form id="fAdd" class="row">
-        <input id="an" placeholder="نام و نام خانوادگی" required>
-        <input id="ap" placeholder="پین ۴ تا ۶ رقمی" inputmode="numeric" maxlength="6" required dir="ltr">
-        <button>افزودن</button>
-      </form>
+      <section class="onboard-panel" aria-labelledby="employeeStartTitle">
+        <h2 id="employeeStartTitle">شروع کار: ثبت مشخصات اولین پرسنل</h2>
+        <p class="m">برای راه‌اندازی حضور و غیاب، ابتدا نام و نام خانوادگی همکار و یک PIN شخصی ۴ تا ۶ رقمی ثبت کن. پس از افزودن، کارت QR اختصاصی او ساخته می‌شود.</p>
+        <form id="fAdd" class="row">
+          <label class="field-label" for="an">نام و نام خانوادگی</label>
+          <input id="an" placeholder="مثلاً علی رضایی" autocomplete="name" required>
+          <label class="field-label" for="ap">رمز شخصی حضور و غیاب (۴ تا ۶ رقم)</label>
+          <input id="ap" type="password" placeholder="PIN پرسنل" inputmode="numeric" pattern="[0-9۰-۹٠-٩]{4,6}" maxlength="6" autocomplete="new-password" required dir="ltr">
+          <button type="submit">ثبت پرسنل و ساخت کارت QR</button>
+        </form>
+        <p class="s" id="emsg" role="status" aria-live="polite"></p>
+      </section>
       <p class="s" id="emsg"></p>
       <div class="row"><h2 style="flex:1">لیست پرسنل</h2><button class="g" id="pAll">چاپ کارت همهٔ فعال‌ها</button></div>
       <div class="tw"><table><tbody id="tb"></tbody></table></div>
@@ -238,16 +243,31 @@ if (rec) view('new');
 
 // ---------- ورود و رمز عبور ----------
 if (location.hash.includes('error')) say('amsg', 'لینک منقضی یا نامعتبر است. دوباره «فراموشی رمز» را بزن.');
+let manualLoginPending = false;
 sb.auth.onAuthStateChange((ev, s) => {
   if (ev === 'PASSWORD_RECOVERY') { rec = true; view('new'); return; }
   if (rec) return;
-  if (ev === 'SIGNED_OUT') view('auth');
-  else if (ev === 'INITIAL_SESSION' || ev === 'SIGNED_IN') s ? setTimeout(boot, 0) : view('auth');
+  if (ev === 'SIGNED_OUT') { manualLoginPending = false; view('auth'); }
+  else if (ev === 'INITIAL_SESSION') {
+    // نشست ذخیره‌شده به‌تنهایی مجوز ورود خودکار به پنل نیست؛ ورود مجدد لازم است.
+    view('auth');
+  } else if (ev === 'SIGNED_IN' && s && manualLoginPending) {
+    manualLoginPending = false;
+    setTimeout(boot, 0);
+  }
 });
 $('fLogin').onsubmit = async e => {
   e.preventDefault();
+  const button = $('fLogin').querySelector('button[type="submit"],button:not([type])');
+  if (button) button.disabled = true;
+  manualLoginPending = true;
+  say('amsg', 'در حال بررسی اطلاعات ورود...', 1);
   const {error} = await sb.auth.signInWithPassword({email: $('em').value.trim(), password: $('pw').value});
-  if (error) say('amsg', 'ایمیل یا رمز عبور درست نیست.');
+  if (error) {
+    manualLoginPending = false;
+    say('amsg', 'ایمیل یا رمز عبور درست نیست؛ دوباره بررسی کن.');
+    if (button) button.disabled = false;
+  }
 };
 $('toForgot').onclick = () => view('forgot');
 $('toLogin').onclick = () => view('auth');
@@ -307,7 +327,15 @@ async function boot() {
   const canInvite = ownerRole === true || managerRole === true;
   $('t4').hidden = !canInvite;
   $('ownerAssign').hidden = ownerRole !== true;
-  view('app'); load(); showBk(); loadSettings();
+  view('app');
+  // پس از هر ورود، همیشه صفحه پرسنل و فرم افزودن در ابتدای پنل نمایش داده شود.
+  [1,2,3,4,5,6].forEach(k => {
+    $('p' + k).hidden = k !== 1;
+    $('t' + k).className = k === 1 ? '' : 'g';
+  });
+  $('p1').hidden = false;
+  $('an').focus({preventScroll:true});
+  load(); showBk(); loadSettings();
   if (ownerRole === true) loadOwnerLifecycle();
 }
 
