@@ -1,0 +1,2 @@
+[functions.invite-manager]
+verify_jwt = true
