@@ -73,14 +73,14 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
   </section>
 
   <section id="v-noacc" class="box" hidden>
-    <p class="er">این حساب اجازهٔ ورود به پنل مدیر را ندارد.</p>
+    <p class="er" id="noaccmsg">این حساب اجازهٔ ورود به پنل مدیر را ندارد.</p>
     <button class="g" id="out1">خروج</button>
   </section>
 
   <section id="v-app" hidden>
     <div class="row">
       <div class="tabs">
-        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button>
+        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button>
       </div>
       <span style="flex:1"></span><button class="g" id="out2">خروج</button>
     </div>
@@ -112,6 +112,15 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <p class="s er" id="cmsg"></p>
         <button>تغییر رمز</button>
       </form>
+    </div>
+    <div id="p4" hidden>
+      <h2>دعوت مدیر فروشگاه</h2>
+      <p class="m">فقط مدیران احراز هویت‌شده می‌توانند از این بخش برای دعوت مدیر عملیاتی جدید استفاده کنند. نقش مالک از این مسیر قابل ایجاد یا تغییر نیست.</p>
+      <form id="fInvite" class="row">
+        <input id="im" type="email" placeholder="ایمیل مدیر جدید" autocomplete="email" required dir="ltr">
+        <button id="ib">ارسال دعوت</button>
+      </form>
+      <p class="s" id="imsg"></p>
     </div>
   </section>
 </main>
@@ -169,17 +178,65 @@ $('fChg').onsubmit = async e => {
 $('out1').onclick = $('out2').onclick = () => sb.auth.signOut();
 
 async function boot() {
-  const {data} = await sb.rpc('is_admin');
-  if (!data) { view('noacc'); return; }
-  const {data: u} = await sb.auth.getUser();
+  const params = new URLSearchParams(location.search);
+  if (params.get('accept-manager-invite') === '1') {
+    const {error: claimError} = await sb.rpc('claim_store_manager_invite');
+    history.replaceState(null, '', location.pathname);
+    if (claimError) {
+      $('noaccmsg').textContent = 'پذیرش دعوت مدیر انجام نشد. مطمئن شو با همان ایمیل دعوت‌شده و ایمیل تأییدشده وارد شده‌ای. (' + claimError.message + ')';
+      view('noacc'); return;
+    }
+  }
+
+  const {data: allowed, error: accessError} = await sb.rpc('is_admin');
+  if (accessError || !allowed) { view('noacc'); return; }
+
+  const [{data: ownerRole}, {data: managerRole}, {data: u}] = await Promise.all([
+    sb.rpc('has_app_role', {p_role: 'owner'}),
+    sb.rpc('has_app_role', {p_role: 'store_manager'}),
+    sb.auth.getUser()
+  ]);
   $('who').textContent = u && u.user ? u.user.email : '';
+  const canInvite = ownerRole === true || managerRole === true;
+  $('t4').hidden = !canInvite;
   view('app'); load(); showBk();
 }
 
 // ---------- تب‌ها ----------
-[1, 2, 3].forEach(n => $('t' + n).onclick = () => [1, 2, 3].forEach(k => {
+[1, 2, 3, 4].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
 }));
+
+// ---------- دعوت مدیران عملیاتی ----------
+$('fInvite').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('im').value.trim().toLowerCase();
+  const {data: sessionData, error: sessionError} = await sb.auth.getSession();
+  const session = sessionData && sessionData.session;
+  if (sessionError || !session) { say('imsg', 'نشست ورود معتبر نیست؛ دوباره وارد شو.'); return; }
+
+  $('ib').disabled = true;
+  say('imsg', 'در حال ارسال دعوت...', 1);
+  try {
+    const response = await fetch(C.SUPABASE_URL + '/functions/v1/invite-manager', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': C.SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({email})
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'invite_failed');
+    $('im').value = '';
+    say('imsg', 'دعوت برای ' + email + ' ارسال شد. مدیر جدید پس از تأیید ایمیل و پذیرش دعوت فعال می‌شود.', 1);
+  } catch (err) {
+    say('imsg', 'ارسال دعوت ناموفق بود: ' + (err.message || err));
+  } finally {
+    $('ib').disabled = false;
+  }
+};
 
 // ---------- پرسنل ----------
 async function load() {
