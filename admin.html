@@ -121,6 +121,15 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <button id="ib">ارسال دعوت</button>
       </form>
       <p class="s" id="imsg"></p>
+      <div id="ownerAssign" hidden>
+        <h2>تعیین مدیر برای حساب موجود</h2>
+        <p class="m">اگر مدیر فروشگاه از قبل حساب کاربری تأییدشده دارد، مالک می‌تواند ایمیل همان حساب را به نقش مدیر فروشگاه متصل کند.</p>
+        <form id="fAssign" class="row">
+          <input id="ae" type="email" placeholder="ایمیل حساب موجود مدیر" required dir="ltr">
+          <button class="g">تعیین مدیر</button>
+        </form>
+        <p class="s" id="aemsg"></p>
+      </div>
     </div>
   </section>
 </main>
@@ -199,6 +208,7 @@ async function boot() {
   $('who').textContent = u && u.user ? u.user.email : '';
   const canInvite = ownerRole === true || managerRole === true;
   $('t4').hidden = !canInvite;
+  $('ownerAssign').hidden = ownerRole !== true;
   view('app'); load(); showBk();
 }
 
@@ -236,6 +246,15 @@ $('fInvite').onsubmit = async e => {
   } finally {
     $('ib').disabled = false;
   }
+};
+
+$('fAssign').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('ae').value.trim().toLowerCase();
+  const {error} = await sb.rpc('owner_assign_store_manager', {p_email: email});
+  if (error) { say('aemsg', 'تعیین مدیر انجام نشد: ' + error.message); return; }
+  $('ae').value = '';
+  say('aemsg', 'حساب تأییدشده با نقش مدیر فروشگاه فعال شد.', 1);
 };
 
 // ---------- پرسنل ----------
