@@ -9,6 +9,7 @@
 ## مستندات
 - [نقشه راه توسعه](docs/ROADMAP.md)
 - [گزارش امنیت و وضعیت فعلی](docs/SECURITY.md)
+- [طراحی نقش‌ها و سطح دسترسی](docs/ACCESS-CONTROL.md)
 - [تاریخچه تغییرات](CHANGELOG.md)
 
 ## وضعیت توسعه
