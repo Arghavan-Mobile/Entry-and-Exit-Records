@@ -4,7 +4,8 @@
 
 ## اجزای فعلی
 - کیوسک ثبت ورود و خروج با QR و PIN
-- مشاهده سوابق ماهانه کارمند با QR و PIN
+- مشاهده سوابق ماهانه و ثبت درخواست اصلاح توسط کارمند با QR و PIN
+- صف بررسی درخواست‌های اصلاح در پنل مدیر
 - پنل مدیریت کارکنان، کارت QR، تغییر PIN، فعال/غیرفعال‌سازی و پشتیبان‌گیری
 - نقش‌های مستقل مالک و مدیر فروشگاه
 - دعوت مدیر عملیاتی و پذیرش دعوت
@@ -20,6 +21,8 @@
 - [Migration درخواست اصلاح حضور](supabase/migrations/20261118185113_attendance_correction_requests.sql)
 - [Migration محافظت از رکورد دارای درخواست](supabase/migrations/20261118185131_correction_request_delete_guard.sql)
 - [Migration نمایش وضعیت درخواست در سوابق](supabase/migrations/20261118185255_kiosk_correction_status.sql)
+- [Migration محدودیت درخواست‌ها و مسیرهای امن](supabase/migrations/20261118185457_correction_request_rate_limits.sql)
+- [Migration محدودسازی search_path توابع اصلاح](supabase/migrations/20261118185542_tighten_correction_function_search_paths.sql)
 - [آزمون‌های مجوز نقش‌ها](supabase/tests/role_access.sql)
 - [آزمون توابع مدیریت سوابق](supabase/tests/admin_record_rpcs.sql)
 - [آزمون تنظیمات مدیران](supabase/tests/admin_settings.sql)
