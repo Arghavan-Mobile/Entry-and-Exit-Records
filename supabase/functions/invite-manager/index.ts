@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
 
   if (!existingUser) {
     const { error: authInviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo: new URL("/admin.html?accept-manager-invite=1", appUrl).toString(),
+      redirectTo: new URL("admin.html?accept-manager-invite=1", appUrl.endsWith("/") ? appUrl : appUrl + "/").toString(),
     });
 
     if (authInviteError) {
@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
     new_data: { email, invite_id: inviteRow.id, existing_auth_user: Boolean(existingUser) },
   });
 
-  const claimUrl = new URL("/admin.html?accept-manager-invite=1", appUrl).toString();
+  const claimUrl = new URL("admin.html?accept-manager-invite=1", appUrl.endsWith("/") ? appUrl : appUrl + "/").toString();
   return json({
     ok: true,
     message: existingUser ? "existing_user_must_sign_in_and_claim" : "manager_invitation_sent",
