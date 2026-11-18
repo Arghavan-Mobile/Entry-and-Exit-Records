@@ -24,6 +24,10 @@ button,input{min-height:44px}
 @media(max-width:640px){
  body{padding:8px}
  main{padding:15px 12px 20px;border-radius:16px;border-top-width:6px}
+ .onboard-panel{padding:13px 11px;margin:10px 0 16px}
+ .onboard-panel h2{font-size:17px}
+ .onboard-panel form{display:flex;flex-direction:column;align-items:stretch}
+ .onboard-panel form input,.onboard-panel form button{width:100%;flex:1 1 auto}
  .top{gap:8px;margin-bottom:12px}
  .top img{width:38px}
  .top h1{font-size:17px}
@@ -48,6 +52,12 @@ button,input{min-height:44px}
  .tabs button{font-size:12px}
 }
 .box{max-width:380px;margin:16px auto}
+.onboard-panel{margin:14px 0 20px;padding:16px;border:2px solid var(--ln);border-right:5px solid var(--b);border-radius:16px;background:#faf9ff}
+.onboard-panel h2{margin:0 0 8px;font-size:18px}
+.onboard-panel p{line-height:1.9}
+.field-label{display:block;width:100%;font-size:14px;font-weight:700;margin-top:8px}
+.onboard-panel form{display:grid;grid-template-columns:1fr;gap:8px}
+.onboard-panel form input,.onboard-panel form button{width:100%;min-width:0;min-height:48px;margin:0}
 h2{font-size:16px;margin:18px 0 8px}
 input{font:inherit;width:100%;padding:11px;border:2px solid var(--ln);border-radius:10px;margin:5px 0}
 button{font:inherit;border:1px solid var(--b);border-radius:10px;padding:9px 16px;cursor:pointer;background:var(--b);color:#fff}
