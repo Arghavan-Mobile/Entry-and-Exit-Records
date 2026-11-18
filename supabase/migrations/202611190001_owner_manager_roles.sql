@@ -205,3 +205,62 @@ end;
 $$;
 
 revoke all on function public._require_admin() from public, anon, authenticated;
+
+
+-- Owner-only assignment for a pre-existing, email-verified Auth user.
+-- Useful when the first store manager already has a Supabase account.
+create or replace function public.owner_assign_store_manager(p_email text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_owner_id uuid := (select auth.uid());
+  v_email text := lower(btrim(coalesce(p_email, '')));
+  v_target_id uuid;
+begin
+  if v_owner_id is null or not exists (
+    select 1 from public.app_user_roles r
+    where r.user_id = v_owner_id and r.role = 'owner'
+  ) then
+    raise exception 'owner_role_required' using errcode = '42501';
+  end if;
+
+  if v_email = '' or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$' then
+    raise exception 'valid_email_required';
+  end if;
+  if v_email = 'mahdi.alaei64@gmail.com' then
+    raise exception 'owner_account_cannot_be_assigned_as_manager';
+  end if;
+
+  select u.id into v_target_id
+  from auth.users u
+  where lower(u.email) = v_email
+    and u.email_confirmed_at is not null;
+
+  if v_target_id is null then
+    raise exception 'verified_auth_user_not_found';
+  end if;
+
+  insert into public.app_user_roles(user_id, role, created_by)
+  values (v_target_id, 'store_manager', v_owner_id)
+  on conflict (user_id) do update
+    set role = case
+      when public.app_user_roles.role = 'owner' then 'owner'::public.app_role
+      else 'store_manager'::public.app_role
+    end;
+
+  insert into public.audit_log(admin_email, action, new_data)
+  values (
+    lower(coalesce(auth.jwt() ->> 'email', '')),
+    'assign_store_manager',
+    jsonb_build_object('email', v_email, 'user_id', v_target_id)
+  );
+
+  return true;
+end;
+$$;
+
+revoke all on function public.owner_assign_store_manager(text) from public, anon;
+grant execute on function public.owner_assign_store_manager(text) to authenticated;
