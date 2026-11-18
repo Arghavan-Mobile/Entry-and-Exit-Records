@@ -237,6 +237,13 @@ begin
     raise exception 'verified_auth_user_not_found';
   end if;
 
+  if exists (
+    select 1 from public.app_user_roles r
+    where r.user_id = v_target_id and r.role = 'owner'
+  ) then
+    raise exception 'target_is_owner';
+  end if;
+
   insert into public.app_user_roles(user_id, role, created_by)
   values (v_target_id, 'store_manager', v_owner_id)
   on conflict (user_id) do update
