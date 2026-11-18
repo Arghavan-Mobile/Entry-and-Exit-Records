@@ -80,7 +80,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
   <section id="v-app" hidden>
     <div class="row">
       <div class="tabs">
-        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button><button id="t5" class="g">گزارش و بررسی</button>
+        <button id="t1">پرسنل</button><button id="t2" class="g">پشتیبان‌گیری</button><button id="t3" class="g">حساب من</button><button id="t4" class="g" hidden>دعوت مدیر</button><button id="t5" class="g">گزارش و بررسی</button><button id="t6" class="g">تنظیمات</button>
       </div>
       <span style="flex:1"></span><button class="g" id="out2">خروج</button>
     </div>
@@ -154,6 +154,19 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
       </div>
       <p class="s" id="reportMsg"></p>
       <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+    </div>
+    <div id="p6" hidden>
+      <h2>تنظیمات سامانه</h2>
+      <p class="m">تغییر این مقادیر روی ثبت ورود و خروج و محدودیت تلاش PIN اثر می‌گذارد. همه تغییرات با نام مدیر در گزارش ممیزی ثبت می‌شوند.</p>
+      <form id="fSettings" class="box" style="max-width:520px;margin:0">
+        <label>نام فروشگاه<input id="setShop" maxlength="100" required></label>
+        <label>حداقل فاصله بین دو اسکن (دقیقه)<input id="setGap" type="number" min="0" max="60" required></label>
+        <label>حداکثر طول شیفت باز (ساعت)<input id="setShift" type="number" min="1" max="48" required></label>
+        <label>حداکثر تلاش PIN اشتباه<input id="setAttempts" type="number" min="3" max="20" required></label>
+        <label>مدت قفل پس از خطا (دقیقه)<input id="setLock" type="number" min="1" max="1440" required></label>
+        <p class="s" id="settingsMsg"></p>
+        <button>ذخیره تنظیمات</button>
+      </form>
     </div>
   </section>
 </main>
@@ -234,12 +247,12 @@ async function boot() {
   const canInvite = ownerRole === true || managerRole === true;
   $('t4').hidden = !canInvite;
   $('ownerAssign').hidden = ownerRole !== true;
-  view('app'); load(); showBk();
+  view('app'); load(); showBk(); loadSettings();
   if (ownerRole === true) loadOwnerLifecycle();
 }
 
 // ---------- تب‌ها ----------
-[1, 2, 3, 4, 5].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5].forEach(k => {
+[1, 2, 3, 4, 5, 6].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5, 6].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
 }));
 
@@ -336,6 +349,38 @@ $('inviteRows').onclick = async e => {
   if (error) { say('managerMsg', 'لغو دعوت انجام نشد: ' + error.message); b.disabled = false; return; }
   say('managerMsg', 'دعوت لغو شد.', 1);
   loadOwnerLifecycle();
+};
+
+// ---------- تنظیمات ----------
+async function loadSettings() {
+  const {data, error} = await sb.from('settings')
+    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes')
+    .eq('id', 1).single();
+  if (error) { say('settingsMsg', 'دریافت تنظیمات ناموفق بود: ' + error.message); return; }
+  $('setShop').value = data.shop_name || '';
+  $('setGap').value = data.min_gap_minutes;
+  $('setShift').value = data.max_shift_hours;
+  $('setAttempts').value = data.max_pin_attempts;
+  $('setLock').value = data.lock_minutes;
+}
+$('fSettings').onsubmit = async e => {
+  e.preventDefault();
+  const args = {
+    p_shop_name: $('setShop').value.trim(),
+    p_min_gap_minutes: Number($('setGap').value),
+    p_max_shift_hours: Number($('setShift').value),
+    p_max_pin_attempts: Number($('setAttempts').value),
+    p_lock_minutes: Number($('setLock').value)
+  };
+  if (args.p_shop_name.length < 2 || args.p_min_gap_minutes < 0 || args.p_min_gap_minutes > 60 ||
+      args.p_max_shift_hours < 1 || args.p_max_shift_hours > 48 ||
+      args.p_max_pin_attempts < 3 || args.p_max_pin_attempts > 20 ||
+      args.p_lock_minutes < 1 || args.p_lock_minutes > 1440) {
+    say('settingsMsg', 'یکی از مقادیر خارج از محدوده مجاز است.'); return;
+  }
+  const {error} = await sb.rpc('admin_update_settings', args);
+  if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
+  say('settingsMsg', 'تنظیمات ذخیره شد و در گزارش ممیزی ثبت شد.', 1);
 };
 
 // ---------- پرسنل ----------
