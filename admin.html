@@ -228,6 +228,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
 </main>
 <div id="cards"></div>
 
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
@@ -239,6 +240,8 @@ const requestedRole = new URLSearchParams(location.search).get('role');
 const expectedRole = ['owner', 'store_manager'].includes(requestedRole) ? requestedRole : null;
 const roleLabel = expectedRole === 'owner' ? 'مالک' : expectedRole === 'store_manager' ? 'مدیر فروشگاه' : 'مدیریت';
 const view = n => V.forEach(v => $('v-' + v).hidden = v !== n);
+// نمایش فرم ورود از همان لحظه بارگذاری؛ نشست قبلی نباید صفحه را خالی بگذارد.
+if (rec) view('new'); else view('auth');
 const say = (id, t, ok) => { const e = $(id); e.textContent = t; e.className = 's ' + (ok ? 'ok' : 'er'); };
 const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fa2en = s => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
@@ -248,8 +251,6 @@ $('loginTitle').textContent = 'ورود ' + roleLabel;
 $('loginHelp').textContent = expectedRole
   ? 'برای ورود به پنل ' + roleLabel + '، ایمیل و رمز عبور حساب مربوط را وارد کنید.'
   : 'ایمیل و رمز عبور حساب مالک یا مدیر مجاز را وارد کنید.';
-if (rec) view('new');
-
 // ---------- ورود و رمز عبور ----------
 if (location.hash.includes('error')) say('amsg', 'لینک منقضی یا نامعتبر است. دوباره «فراموشی رمز» را بزن.');
 let manualLoginPending = false;
