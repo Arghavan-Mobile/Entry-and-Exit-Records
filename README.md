@@ -17,9 +17,13 @@
 - [Migration نقش‌ها](supabase/migrations/20261118184001_owner_manager_roles.sql)
 - [Migration مدیریت چرخه مدیران](supabase/migrations/20261118184342_manager_lifecycle_controls.sql)
 - [Migration تنظیمات ممیزی‌شده](supabase/migrations/20261118184847_admin_update_settings.sql)
+- [Migration درخواست اصلاح حضور](supabase/migrations/20261118185113_attendance_correction_requests.sql)
+- [Migration محافظت از رکورد دارای درخواست](supabase/migrations/20261118185131_correction_request_delete_guard.sql)
+- [Migration نمایش وضعیت درخواست در سوابق](supabase/migrations/20261118185255_kiosk_correction_status.sql)
 - [آزمون‌های مجوز نقش‌ها](supabase/tests/role_access.sql)
 - [آزمون توابع مدیریت سوابق](supabase/tests/admin_record_rpcs.sql)
 - [آزمون تنظیمات مدیران](supabase/tests/admin_settings.sql)
+- [آزمون گردش کار درخواست اصلاح](supabase/tests/attendance_correction_workflow.sql)
 - [تاریخچه تغییرات](CHANGELOG.md)
 
 ## وضعیت انتشار
