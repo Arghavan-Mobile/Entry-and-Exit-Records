@@ -117,6 +117,31 @@ Deno.serve(async (req: Request) => {
     return json({ error: "existing_user_must_confirm_email_first" }, 409);
   }
 
+  if (existingUser) {
+    const { data: existingRole, error: existingRoleError } = await adminClient
+      .from("app_user_roles")
+      .select("role")
+      .eq("user_id", existingUser.id)
+      .maybeSingle();
+    if (existingRoleError) return json({ error: "target_role_lookup_failed" }, 500);
+    if (existingRole?.role === "owner") {
+      return json({ error: "owner_account_cannot_be_invited_as_manager" }, 409);
+    }
+    if (existingRole?.role === "store_manager") {
+      return json({ error: "user_is_already_a_store_manager" }, 409);
+    }
+  }
+
+  const { count: recentInviteCount, error: rateError } = await adminClient
+    .from("manager_invites")
+    .select("id", { count: "exact", head: true })
+    .eq("invited_by", caller.id)
+    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  if (rateError) return json({ error: "invitation_rate_check_failed" }, 500);
+  if ((recentInviteCount ?? 0) >= 10) {
+    return json({ error: "daily_invitation_limit_reached" }, 429);
+  }
+
   const { data: inviteRow, error: insertError } = await adminClient
     .from("manager_invites")
     .insert({ email, invited_by: caller.id })
