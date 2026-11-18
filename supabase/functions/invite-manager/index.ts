@@ -74,13 +74,25 @@ Deno.serve(async (req: Request) => {
     return json({ error: "not_authorized_to_invite_managers" }, 403);
   }
 
+  // Expired pending invitations must be revoked because the partial unique
+  // index intentionally includes every non-revoked, unaccepted invitation.
+  const nowIso = new Date().toISOString();
+  const { error: expireError } = await adminClient
+    .from("manager_invites")
+    .update({ revoked_at: nowIso })
+    .eq("email", email)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .lte("expires_at", nowIso);
+  if (expireError) return json({ error: "expired_invite_cleanup_failed" }, 500);
+
   const { data: existingInvite, error: existingError } = await adminClient
     .from("manager_invites")
     .select("id")
     .eq("email", email)
     .is("accepted_at", null)
     .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
+    .gt("expires_at", nowIso)
     .maybeSingle();
 
   if (existingError) return json({ error: "invite_lookup_failed" }, 500);
@@ -88,14 +100,18 @@ Deno.serve(async (req: Request) => {
 
   // If the target already has an Auth account, create a pending invitation
   // that they can claim after signing in with that same verified email.
-  const { data: usersPage, error: usersError } = await adminClient.auth.admin.listUsers({
-    page: 1,
-    perPage: 1000,
-  });
-  if (usersError) return json({ error: "auth_user_lookup_failed" }, 500);
-  const existingUser = usersPage.users.find(
-    (user) => (user.email ?? "").toLowerCase() === email,
-  );
+  let existingUser: { id: string; email?: string; email_confirmed_at?: string } | undefined;
+  for (let page = 1; page <= 20; page++) {
+    const { data: usersPage, error: usersError } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (usersError) return json({ error: "auth_user_lookup_failed" }, 500);
+    existingUser = usersPage.users.find(
+      (user) => (user.email ?? "").toLowerCase() === email,
+    );
+    if (existingUser || usersPage.users.length < 1000) break;
+  }
 
   if (existingUser && !existingUser.email_confirmed_at) {
     return json({ error: "existing_user_must_confirm_email_first" }, 409);
