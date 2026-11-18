@@ -234,19 +234,27 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
 <script>
 const C = window.APP_CONFIG || {};
 const $ = id => document.getElementById(id);
-const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_KEY);
 const V = ['auth', 'forgot', 'new', 'noacc', 'app'];
 const requestedRole = new URLSearchParams(location.search).get('role');
 const expectedRole = ['owner', 'store_manager'].includes(requestedRole) ? requestedRole : null;
 const roleLabel = expectedRole === 'owner' ? 'مالک' : expectedRole === 'store_manager' ? 'مدیر فروشگاه' : 'مدیریت';
-const view = n => V.forEach(v => $('v-' + v).hidden = v !== n);
-// نمایش فرم ورود از همان لحظه بارگذاری؛ نشست قبلی نباید صفحه را خالی بگذارد.
-if (rec) view('new'); else view('auth');
-const say = (id, t, ok) => { const e = $(id); e.textContent = t; e.className = 's ' + (ok ? 'ok' : 'er'); };
+const view = n => V.forEach(v => { const el = $('v-' + v); if (el) el.hidden = v !== n; });
+const say = (id, t, ok) => { const e = $(id); if (e) { e.textContent = t; e.className = 's ' + (ok ? 'ok' : 'er'); } };
+let rec = location.hash.includes('type=recovery') || location.hash.includes('type=invite'), emps = [];
+// اول صفحهٔ ورود را نمایش بده؛ سپس سراغ ساخت اتصال خارجی برو.
+view(rec ? 'new' : 'auth');
+let sb;
+try {
+  if (!C.SUPABASE_URL || !C.SUPABASE_KEY) throw new Error('config.js بارگذاری نشده است.');
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') throw new Error('کتابخانهٔ Supabase بارگذاری نشده است.');
+  sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_KEY);
+} catch (startupError) {
+  say('amsg', 'خطا در آماده‌سازی ورود: ' + startupError.message);
+  console.error(startupError);
+}
 const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 const fa2en = s => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
 const fe = m => /invalid_pin/.test(m) ? 'پین باید ۴ تا ۶ رقم باشد.' : /not_authorized/.test(m) ? 'دسترسی ندارید.' : 'انجام نشد: ' + m;
-let rec = location.hash.includes('type=recovery') || location.hash.includes('type=invite'), emps = [];
 $('loginTitle').textContent = 'ورود ' + roleLabel;
 $('loginHelp').textContent = expectedRole
   ? 'برای ورود به پنل ' + roleLabel + '، ایمیل و رمز عبور حساب مربوط را وارد کنید.'
