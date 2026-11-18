@@ -25,8 +25,12 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const appUrl = Deno.env.get("APP_URL");
 
-  if (!supabaseUrl || !anonKey || !serviceRoleKey || !appUrl) {
+  const appOrigin = Deno.env.get("APP_ORIGIN");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey || !appUrl || !appOrigin) {
     return json({ error: "server_configuration_incomplete" }, 500);
+  }
+  if (req.headers.get("Origin") !== appOrigin) {
+    return json({ error: "origin_not_allowed" }, 403);
   }
 
   const token = authHeader.slice("Bearer ".length);
@@ -98,6 +102,13 @@ Deno.serve(async (req: Request) => {
     await adminClient.from("manager_invites").delete().eq("id", inviteRow.id);
     return json({ error: "auth_invitation_failed", detail: authInviteError.message }, 400);
   }
+
+  const { error: auditError } = await adminClient.from("audit_log").insert({
+    admin_email: caller.email?.toLowerCase() ?? "",
+    action: "invite_manager",
+    new_data: { email, invite_id: inviteRow.id },
+  });
+  if (auditError) return json({ error: "invite_sent_audit_write_failed" }, 500);
 
   return json({ ok: true, message: "manager_invitation_sent" }, 200);
 });
