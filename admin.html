@@ -154,6 +154,10 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
       </div>
       <p class="s" id="reportMsg"></p>
       <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+      <h2>درخواست‌های اصلاح در انتظار بررسی</h2>
+      <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
+      <p class="s" id="requestMsg"></p>
+      <div class="tw"><table><thead><tr><th>کارمند و دلیل</th><th>زمان فعلی</th><th>زمان درخواستی</th><th>عملیات</th></tr></thead><tbody id="requestRows"></tbody></table></div>
     </div>
     <div id="p6" hidden>
       <h2>تنظیمات سامانه</h2>
@@ -254,6 +258,7 @@ async function boot() {
 // ---------- تب‌ها ----------
 [1, 2, 3, 4, 5, 6].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5, 6].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
+  if (k === n && n === 5) { loadReport(); loadCorrectionRequests(); }
 }));
 
 // ---------- دعوت مدیران عملیاتی ----------
@@ -467,6 +472,39 @@ async function loadReport() {
     say('reportMsg', 'گزارش بارگذاری نشد: ' + (err.message || err));
   }
 }
+async function loadCorrectionRequests() {
+  say('requestMsg', 'در حال دریافت درخواست‌ها...', 1);
+  const {data, error} = await sb.rpc('manager_list_attendance_requests');
+  if (error) { say('requestMsg', 'دریافت درخواست‌ها ناموفق بود: ' + error.message); return; }
+  $('requestRows').innerHTML = data.length ? data.map(r =>
+    '<tr><td>' + esc(r.employee_name) + '<br><small class="m">' + esc(r.request_reason) + '</small></td>' +
+    '<td>ورود: ' + reportFaTime(r.original_data && r.original_data.check_in) +
+    '<br>خروج: ' + reportFaTime(r.original_data && r.original_data.check_out) + '</td>' +
+    '<td>ورود: ' + reportFaTime(r.requested_check_in) +
+    '<br>خروج: ' + reportFaTime(r.requested_check_out) + '</td>' +
+    '<td class="a" data-request="' + r.request_id + '">' +
+    '<button class="g" data-review="approved">تأیید</button>' +
+    '<button class="g" data-review="rejected">رد</button></td></tr>'
+  ).join('') : '<tr><td colspan="4" class="m">درخواست در انتظاری وجود ندارد.</td></tr>';
+  say('requestMsg', 'تعداد درخواست‌های در انتظار: ' + data.length, 1);
+}
+$('refreshRequests').onclick = loadCorrectionRequests;
+$('requestRows').onclick = async e => {
+  const b = e.target.closest('button[data-review]'); if (!b) return;
+  const requestId = b.parentNode.dataset.request;
+  const decision = b.dataset.review;
+  const reason = prompt(decision === 'approved'
+    ? 'دلیل تأیید را بنویس (حداقل ۳ حرف):'
+    : 'دلیل رد درخواست را بنویس (حداقل ۳ حرف):');
+  if (!reason || reason.trim().length < 3) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('manager_review_attendance_request', {
+    p_request_id: requestId, p_decision: decision, p_review_reason: reason.trim()
+  });
+  if (error) { say('requestMsg', 'ثبت تصمیم ناموفق بود: ' + error.message); b.disabled = false; return; }
+  say('requestMsg', decision === 'approved' ? 'درخواست تأیید شد و رکورد اصلاح شد.' : 'درخواست رد شد.', 1);
+  loadCorrectionRequests(); loadReport();
+};
 $('loadReport').onclick = loadReport;
 $('reportEmployee').onchange = loadReport;
 $('reportRows').onclick = async e => {
