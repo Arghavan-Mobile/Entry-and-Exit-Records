@@ -154,10 +154,10 @@ begin
   on conflict (user_id) do update
     set role = 'owner';
 end
-$;
+$$;
 
 -- Preserve the existing second administrator as the initial store manager.
-do $
+do $$
 declare
   v_manager_id uuid;
 begin
@@ -179,7 +179,7 @@ begin
       else 'store_manager'::public.app_role
     end;
 end
-$;
+$$;
 
 comment on table public.app_user_roles is
   'Application roles keyed by Supabase Auth user UUID. Only controlled server-side flows may modify this table.';
