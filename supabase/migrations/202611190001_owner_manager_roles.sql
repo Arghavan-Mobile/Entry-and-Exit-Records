@@ -27,7 +27,7 @@ create table if not exists public.manager_invites (
   invited_by uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default (now() + interval '7 days'),
-  accepted_by uuid references auth.users(id) on delete set null,
+  accepted_by uuid references auth.users(id) on delete restrict,
   accepted_at timestamptz,
   revoked_at timestamptz,
   check (expires_at > created_at),
