@@ -1,4 +1,4 @@
--- Settings update RPC smoke test. All writes are rolled back.
+-- Settings update RPC smoke test for both admin roles. All writes are rolled back.
 begin;
 
 do $tests$
@@ -11,7 +11,16 @@ begin
 
   v_result := public.admin_update_settings('موبایل ارغوان', 2, 14, 5, 15);
   if v_result ->> 'shop_name' <> 'موبایل ارغوان' then
-    raise exception 'admin_update_settings_smoke_test_failed';
+    raise exception 'owner_settings_smoke_test_failed';
+  end if;
+
+  perform set_config('request.jwt.claim.sub', 'c0e814d2-971e-40c2-b8ee-bebf0fefb1d0', true);
+  perform set_config('request.jwt.claims',
+    '{"sub":"c0e814d2-971e-40c2-b8ee-bebf0fefb1d0","email":"ahoora7000@gmail.com","role":"authenticated"}', true);
+
+  v_result := public.admin_update_settings('موبایل ارغوان', 2, 14, 5, 15);
+  if v_result ->> 'shop_name' <> 'موبایل ارغوان' then
+    raise exception 'manager_settings_smoke_test_failed';
   end if;
 
   begin
