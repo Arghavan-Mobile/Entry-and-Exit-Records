@@ -128,9 +128,8 @@ function setMode(m) {
   mode = m;
   $('mClock').className = m === 'clock' ? '' : 'g';
   $('mRec').className = m === 'rec' ? '' : 'g';
-  $('hint').textContent = m === 'clock'
-    ? 'کارت QR خود را اسکن کنید تا ورود یا خروجتان ثبت شود'
-    : 'کارت QR خود را اسکن کنید تا سوابقتان نمایش داده شود';
+  // راهنمای QR حذف شده؛ مسیر ثبت حضور به NFC منتقل خواهد شد.
+  $('hint').textContent = '';
   $('scan').focus();
 }
 function home(msg) {
