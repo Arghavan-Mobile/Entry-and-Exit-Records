@@ -60,10 +60,18 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   </section>
 
   <section id="pinv" hidden>
-    <p class="hint">پین خود را وارد کنید</p>
+    <p class="hint">کد پرسنلی یا پین خود را وارد کنید</p>
     <input id="pin" class="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="پین">
     <p class="err" id="perr"></p>
     <div class="row"><button id="ok">تأیید</button><button id="cancel" class="g">انصراف</button></div>
+  </section>
+
+  <section id="actions" hidden>
+    <h2 id="staffTitle"></h2>
+    <p class="hint">نوع عملیات را انتخاب کنید</p>
+    <div class="row"><button id="doIn">ثبت ورود</button><button id="doOut" class="g">ثبت خروج</button></div>
+    <p class="err" id="actionMsg"></p>
+    <button id="backPin" class="g">بازگشت</button>
   </section>
 
   <section id="res" hidden>
@@ -93,8 +101,8 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
 const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
-const V = {home: $('home'), pin: $('pinv'), res: $('res'), rec: $('rec')};
-let mode = 'clock', qr = '', pass = '', mstart = 0, tmr, recRows = [];
+const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), res: $('res'), rec: $('rec')};
+let mode = 'clock', qr = '', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
 const kioskToken = new URLSearchParams(location.search).get('kiosk') || '';
 
 // ---------- ابزارها ----------
@@ -168,15 +176,11 @@ async function submitPin() {
   try {
     if (mode === 'clock') {
       if (!kioskToken) { $('perr').textContent = 'تگ NFC مغازه شناسایی نشد. دوباره تگ را لمس کنید.'; return; }
-      if (!navigator.geolocation) { $('perr').textContent = 'مرورگر شما GPS را پشتیبانی نمی‌کند.'; return; }
-      $('perr').textContent = 'در حال بررسی موقعیت فروشگاه...';
-      const pos = await new Promise((resolve,reject) => navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
-      const r = await rpc('kiosk_scan_nfc', {
-        p_tag_token:kioskToken, p_pin:pin,
-        p_lat:pos.coords.latitude, p_lon:pos.coords.longitude,
-        p_accuracy:pos.coords.accuracy
-      });
-      r.ok ? done(r) : fail(r);
+      pass = pin;
+      staffName = 'کارمند';
+      $('staffTitle').textContent = 'پرسنل: ' + staffName;
+      $('actionMsg').textContent = '';
+      show('actions'); idle(90);
     } else {
       pass = pin; mstart = monthStart(Date.now());
       await loadRec();
@@ -190,12 +194,31 @@ async function submitPin() {
   $('ok').disabled = false;
 }
 $('ok').onclick = submitPin;
+$('backPin').onclick = () => { show('pin'); $('perr').textContent=''; };
+async function submitAttendance(action) {
+  if (!kioskToken) { $('actionMsg').textContent='تگ NFC معتبر نیست.'; return; }
+  if (!navigator.geolocation) { $('actionMsg').textContent='مرورگر GPS را پشتیبانی نمی‌کند.'; return; }
+  $('doIn').disabled=$('doOut').disabled=true;
+  $('actionMsg').textContent='در حال بررسی موقعیت فروشگاه...';
+  try {
+    const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
+    const r=await rpc('kiosk_attendance_nfc',{p_tag_token:kioskToken,p_pin:pass,p_action:action,p_lat:pos.coords.latitude,p_lon:pos.coords.longitude,p_accuracy:pos.coords.accuracy});
+    r.ok ? done(r) : fail(r);
+  } catch(e) {
+    $('actionMsg').textContent=e&&e.code===1?'اجازه دسترسی به موقعیت مکانی داده نشد.':e&&e.code===2?'موقعیت GPS در دسترس نیست.':'دریافت GPS ناموفق بود؛ دوباره تلاش کنید.';
+  } finally { $('doIn').disabled=$('doOut').disabled=false; }
+}
+$('doIn').onclick=()=>submitAttendance('check_in');
+$('doOut').onclick=()=>submitAttendance('check_out');
 $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); });
 
 function fail(r) {
   const E = {
     invalid_card: 'کارت نامعتبر یا غیرفعال است.',
     invalid_tag: 'تگ NFC معتبر نیست.',
+    already_checked_in: 'برای شما ورود باز وجود دارد؛ ابتدا خروج را ثبت کنید.',
+    no_open_shift: 'برای شما ورود بازی وجود ندارد؛ ابتدا ورود را ثبت کنید.',
+    shift_needs_review: 'مدت شیفت از حد مجاز گذشته و نیازمند بررسی مدیر است.',
     invalid_pin: 'پین اشتباه یا نامعتبر است.',
     duplicate_pin: 'این پین برای بیش از یک کارمند ثبت شده؛ مدیر باید آن را اصلاح کند.',
     invalid_location: 'دقت GPS کافی نیست. مکان‌یابی را روشن کنید و دوباره تلاش کنید.',
@@ -224,8 +247,8 @@ function done(r) {
 // ---------- سوابق شخصی (فقط خواندنی) ----------
 async function loadRec() {
   const next = nextMonth(mstart);
-  const r = await rpc('kiosk_my_records', {
-    p_qr: qr, p_pin: pass,
+  const r = await rpc('kiosk_my_records_pin', {
+    p_pin: pass,
     p_from: new Date(mstart).toISOString(), p_to: new Date(next).toISOString()
   });
   if (!r.ok) { fail(r); return; }
@@ -274,8 +297,8 @@ $('tb').onclick = async e => {
   b.disabled = true;
   $('reqmsg').textContent = 'در حال ارسال درخواست...';
   try {
-    const result = await rpc('employee_submit_attendance_request', {
-      p_qr: qr, p_pin: pass, p_record_id: row.id,
+    const result = await rpc('employee_submit_attendance_request_pin', {
+      p_pin: pass, p_record_id: row.id,
       p_requested_check_in: inDate.toISOString(),
       p_requested_check_out: outDate ? outDate.toISOString() : null,
       p_reason: reason.trim()
