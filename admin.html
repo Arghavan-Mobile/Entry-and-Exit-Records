@@ -220,6 +220,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <label>حداکثر طول شیفت باز (ساعت)<input id="setShift" type="number" min="1" max="48" required></label>
         <label>حداکثر تلاش PIN اشتباه<input id="setAttempts" type="number" min="3" max="20" required></label>
         <label>مدت قفل پس از خطا (دقیقه)<input id="setLock" type="number" min="1" max="1440" required></label>
+        <label>دستورالعمل اختیاری برای پرسنل (حداکثر ۲۰۰۰ حرف)<textarea id="setInstruction" maxlength="2000" rows="5" placeholder="در صورت نیاز، قوانین و توضیحات حضور و غیاب را بنویسید؛ خالی گذاشتن یعنی بدون دستورالعمل اضافی."></textarea></label>
         <p class="s" id="settingsMsg"></p>
         <button>ذخیره تنظیمات</button>
       </form>
@@ -461,7 +462,7 @@ $('inviteRows').onclick = async e => {
 // ---------- تنظیمات ----------
 async function loadSettings() {
   const {data, error} = await sb.from('settings')
-    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes')
+    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes,attendance_instruction')
     .eq('id', 1).single();
   if (error) { say('settingsMsg', 'دریافت تنظیمات ناموفق بود: ' + error.message); return; }
   $('setShop').value = data.shop_name || '';
@@ -469,6 +470,7 @@ async function loadSettings() {
   $('setShift').value = data.max_shift_hours;
   $('setAttempts').value = data.max_pin_attempts;
   $('setLock').value = data.lock_minutes;
+  $('setInstruction').value = data.attendance_instruction || '';
 }
 $('fSettings').onsubmit = async e => {
   e.preventDefault();
@@ -487,7 +489,9 @@ $('fSettings').onsubmit = async e => {
   }
   const {error} = await sb.rpc('admin_update_settings', args);
   if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
-  say('settingsMsg', 'تنظیمات ذخیره شد و در گزارش ممیزی ثبت شد.', 1);
+  const instructionResult = await sb.rpc('admin_update_attendance_instruction', {p_instruction: $('setInstruction').value});
+  if (instructionResult.error) { say('settingsMsg', 'تنظیمات پایه ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
+  say('settingsMsg', 'تنظیمات و دستورالعمل اختیاری ذخیره شدند و در گزارش ممیزی ثبت شدند.', 1);
 };
 
 // ---------- پرسنل ----------
