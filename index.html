@@ -155,7 +155,6 @@ $('mClock').onclick = () => {
   if (!kioskToken) $('hmsg').textContent = 'ابتدا تگ NFC مشترک مغازه را لمس کنید.';
   else { $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent=''; show('pin'); idle(45); }
 };
-$('mClock').onclick = () => setMode('clock');
 $('mRec').onclick = () => setMode('rec');
 $('ownerLogin').onclick = () => { location.href = 'admin.html?role=owner'; };
 $('managerLogin').onclick = () => { location.href = 'admin.html?role=store_manager'; };
@@ -314,6 +313,13 @@ if (!C.SUPABASE_URL || C.SUPABASE_URL.includes('PASTE')) {
   // عنوان برند ثابت می‌ماند و از تنظیمات سرور بازنویسی نمی‌شود.
 }
 home($('hmsg').textContent);
+if (kioskToken) {
+  setMode('clock');
+  $('hmsg').textContent = '';
+  $('pin').value = '';
+  show('pin');
+  idle(45);
+}
 </script>
 </body>
 </html>
