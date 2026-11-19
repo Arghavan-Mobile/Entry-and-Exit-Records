@@ -44,7 +44,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   <section id="home">
     <div class="clock" id="clk"></div>
     <div class="m" id="dt"></div>
-    <p class="hint" id="hint"></p>
+    <p class="hint" id="hint">برای ثبت ورود یا خروج، تگ NFC مغازه را لمس کنید.</p>
     <p class="err" id="hmsg"></p>
     <div class="row">
       <button id="mClock">ثبت ورود / خروج</button>
@@ -86,7 +86,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   </section>
 </main>
 
-<input id="scan" autocomplete="off" aria-hidden="true" tabindex="-1" style="position:fixed;left:-999px;opacity:0">
+
 
 <script src="config.js"></script>
 <script>
@@ -95,6 +95,7 @@ const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
 const V = {home: $('home'), pin: $('pinv'), res: $('res'), rec: $('rec')};
 let mode = 'clock', qr = '', pass = '', mstart = 0, tmr, recRows = [];
+const kioskToken = new URLSearchParams(location.search).get('kiosk') || '';
 
 // ---------- ابزارها ----------
 const fa = n => Number(n).toLocaleString('fa-IR');
@@ -129,11 +130,12 @@ function setMode(m) {
   $('mClock').className = m === 'clock' ? '' : 'g';
   $('mRec').className = m === 'rec' ? '' : 'g';
   // راهنمای QR حذف شده؛ مسیر ثبت حضور به NFC منتقل خواهد شد.
-  $('hint').textContent = '';
-  $('scan').focus();
+  $('hint').textContent = m === 'clock'
+    ? (kioskToken ? 'تگ مغازه شناسایی شد؛ برای ادامه پین خود را وارد کنید.' : 'برای ثبت ورود یا خروج، تگ NFC مغازه را لمس کنید.')
+    : 'برای مشاهده سوابق، پین خود را وارد کنید.';
 }
 function home(msg) {
-  qr = ''; pass = ''; $('scan').value = '';
+  qr = ''; pass = '';
   show('home'); setMode('clock');
   $('hmsg').textContent = msg || '';
   idle(msg ? 8 : 0);
@@ -144,22 +146,15 @@ setInterval(() => {
   const n = new Date();
   $('clk').textContent = n.toLocaleTimeString('fa-IR', {timeZone: TZ});
   $('dt').textContent = new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}).format(n);
-  if (!V.home.hidden && document.activeElement !== $('scan')) $('scan').focus();
+  
 }, 1000);
 
-// ---------- اسکن QR (بارکدخوان مثل کیبورد تایپ می‌کند و Enter می‌زند) ----------
-$('scan').addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const v = e.target.value.trim().toLowerCase();
-  e.target.value = '';
-  if (!/^[0-9a-f]{20}$/.test(v)) {
-    $('hmsg').textContent = 'کارت خوانده نشد. زبان کیبورد باید روی انگلیسی باشد (Win + Space).';
-    return;
-  }
-  qr = v; $('pin').value = ''; $('perr').textContent = '';
-  show('pin'); idle(30);
-});
-document.addEventListener('click', () => { if (!V.home.hidden) $('scan').focus(); });
+// ---------- مسیر NFC ---------- 
+$('mClock').onclick = () => {
+  setMode('clock');
+  if (!kioskToken) $('hmsg').textContent = 'ابتدا تگ NFC مشترک مغازه را لمس کنید.';
+  else { $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent=''; show('pin'); idle(45); }
+};
 $('mClock').onclick = () => setMode('clock');
 $('mRec').onclick = () => setMode('rec');
 $('ownerLogin').onclick = () => { location.href = 'admin.html?role=owner'; };
@@ -173,14 +168,25 @@ async function submitPin() {
   $('ok').disabled = true; idle(30);
   try {
     if (mode === 'clock') {
-      const r = await rpc('kiosk_scan', {p_qr: qr, p_pin: pin});
+      if (!kioskToken) { $('perr').textContent = 'تگ NFC مغازه شناسایی نشد. دوباره تگ را لمس کنید.'; return; }
+      if (!navigator.geolocation) { $('perr').textContent = 'مرورگر شما GPS را پشتیبانی نمی‌کند.'; return; }
+      $('perr').textContent = 'در حال بررسی موقعیت فروشگاه...';
+      const pos = await new Promise((resolve,reject) => navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
+      const r = await rpc('kiosk_scan_nfc', {
+        p_tag_token:kioskToken, p_pin:pin,
+        p_lat:pos.coords.latitude, p_lon:pos.coords.longitude,
+        p_accuracy:pos.coords.accuracy
+      });
       r.ok ? done(r) : fail(r);
     } else {
       pass = pin; mstart = monthStart(Date.now());
       await loadRec();
     }
   } catch (e) {
-    $('perr').textContent = 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کنید.';
+    $('perr').textContent = e && e.code === 1 ? 'اجازه دسترسی به موقعیت مکانی داده نشد.' :
+      e && e.code === 2 ? 'موقعیت GPS در دسترس نیست؛ دوباره تلاش کنید.' :
+      e && e.code === 3 ? 'دریافت موقعیت بیش از حد طول کشید؛ دوباره تلاش کنید.' :
+      'ثبت انجام نشد. اتصال اینترنت و GPS را بررسی کنید.';
   }
   $('ok').disabled = false;
 }
@@ -190,6 +196,11 @@ $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); 
 function fail(r) {
   const E = {
     invalid_card: 'کارت نامعتبر یا غیرفعال است.',
+    invalid_tag: 'تگ NFC معتبر نیست.',
+    invalid_pin: 'پین اشتباه یا نامعتبر است.',
+    duplicate_pin: 'این پین برای بیش از یک کارمند ثبت شده؛ مدیر باید آن را اصلاح کند.',
+    invalid_location: 'دقت GPS کافی نیست. مکان‌یابی را روشن کنید و دوباره تلاش کنید.',
+    outside_geofence: 'شما خارج از محدوده مجاز ۵۰ متری فروشگاه هستید.',
     locked: 'به‌دلیل پین اشتباه، این کارت چند دقیقه قفل شد. بعداً دوباره امتحان کنید یا به مدیر بگویید.',
     too_soon: 'ثبت قبلی شما همین چند لحظه پیش انجام شد.'
   };
