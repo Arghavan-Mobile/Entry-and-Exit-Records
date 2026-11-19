@@ -255,7 +255,7 @@ async function loadRec() {
   $('rname').textContent = r.name;
   $('mt').textContent = new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, month: 'long', year: 'numeric'}).format(mstart + D / 2);
   recRows = r.records || [];
-  $('reqmsg').textContent = '';
+  $('reqmsg').textContent = r.instruction ? 'دستورالعمل مدیر: ' + r.instruction : '';
   let total = 0, rows = '<tr><th>روز</th><th>ورود</th><th>خروج</th><th>مدت</th><th>درخواست اصلاح</th></tr>';
   for (const x of r.records) {
     const d = x.check_out ? (new Date(x.check_out) - new Date(x.check_in)) / 6e4 : null;
