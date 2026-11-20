@@ -123,8 +123,15 @@ async function rpc(fn, args) {
     headers: {'Content-Type': 'application/json', apikey: C.SUPABASE_KEY},
     body: JSON.stringify(args)
   });
-  if (!r.ok) throw new Error('http ' + r.status);
-  return r.json();
+  const raw = await r.text();
+  let data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
+  if (!r.ok) {
+    const err = new Error((data && (data.message || data.details || data.hint)) || ('HTTP ' + r.status));
+    err.status = r.status; err.code = data && data.code; err.details = data && data.details;
+    throw err;
+  }
+  return data;
 }
 
 // ---------- صفحه‌ها ----------
@@ -196,12 +203,22 @@ async function submitAttendance(action) {
   if (!navigator.geolocation) { $('actionMsg').textContent='مرورگر GPS را پشتیبانی نمی‌کند.'; return; }
   $('doIn').disabled=$('doOut').disabled=true;
   $('actionMsg').textContent='در حال بررسی موقعیت فروشگاه...';
+  let gpsStage = true;
   try {
-    const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
+    const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:30000,maximumAge:0}));
+    gpsStage = false;
+    $('actionMsg').textContent='موقعیت دریافت شد؛ در حال ثبت در سرور...';
     const r=await rpc('kiosk_attendance_code',{p_pin:pass,p_action:action,p_lat:pos.coords.latitude,p_lon:pos.coords.longitude,p_accuracy:pos.coords.accuracy,p_user_agent:navigator.userAgent||''});
     r.ok ? done(r) : fail(r);
   } catch(e) {
-    $('actionMsg').textContent=e&&e.code===1?'اجازه دسترسی به موقعیت مکانی داده نشد.':e&&e.code===2?'موقعیت GPS در دسترس نیست.':'دریافت GPS ناموفق بود؛ دوباره تلاش کنید.';
+    if (gpsStage) {
+      $('actionMsg').textContent=e&&e.code===1?'اجازه دسترسی به موقعیت مکانی داده نشد؛ مجوز Location را برای مرورگر فعال کنید.':
+        e&&e.code===2?'موقعیت GPS در دسترس نیست؛ GPS و اینترنت را روشن کنید و کنار فضای باز دوباره تلاش کنید.':
+        e&&e.code===3?'دریافت GPS بیش از ۳۰ ثانیه طول کشید؛ دوباره تلاش کنید.':
+        'دریافت موقعیت مکانی ناموفق بود: '+(e.message||'خطای نامشخص');
+    } else {
+      $('actionMsg').textContent='سرور ثبت را نپذیرفت: '+(e.message||'خطای نامشخص')+(e.code?' ('+e.code+')':'');
+    }
   } finally { $('doIn').disabled=$('doOut').disabled=false; }
 }
 $('doIn').onclick=()=>submitAttendance('check_in');
@@ -214,9 +231,9 @@ function fail(r) {
     no_open_shift: 'برای شما ورود بازی وجود ندارد؛ ابتدا ورود را ثبت کنید.',
     shift_needs_review: 'مدت شیفت از حد مجاز گذشته و نیازمند بررسی مدیر است.',
     invalid_pin: 'کد پرسنلی اشتباه یا نامعتبر است.',
-    duplicate_pin: 'این پین برای بیش از یک کارمند ثبت شده؛ مدیر باید آن را اصلاح کند.',
-    invalid_location: 'دقت GPS کافی نیست. مکان‌یابی را روشن کنید و دوباره تلاش کنید.',
-    outside_geofence: 'شما خارج از محدوده مجاز ۵۰ متری فروشگاه هستید.',
+    duplicate_pin: 'این کد پرسنلی تکراری است؛ مدیر باید کدهای تکراری قبلی را اصلاح کند.',
+    invalid_location: 'اطلاعات GPS معتبر نیست یا دقت مکان‌یابی کافی نیست. GPS را روشن کنید و دوباره تلاش کنید. دقت ثبت‌شده: ' + fa(r.accuracy_m || 0) + ' متر.',
+    outside_geofence: 'موقعیت شما خارج از محدوده ۵۰ متری فروشگاه است. فاصله محاسبه‌شده: ' + fa(r.distance_m || 0) + ' متر.',
     locked: 'به‌دلیل ورود ناموفق چندباره، دسترسی شما موقتاً قفل شده است. بعداً دوباره امتحان کنید یا به مدیر بگویید.',
     too_soon: 'ثبت قبلی شما همین چند لحظه پیش انجام شد.'
   };
@@ -225,7 +242,7 @@ function fail(r) {
     $('perr').textContent = 'کد پرسنلی اشتباه است. ' + fa(r.attempts_left) + ' تلاش باقی مانده.';
     return;
   }
-  home((r.name ? r.name + ': ' : '') + (E[r.error] || 'خطای نامشخص. دوباره تلاش کنید.'));
+  $('actionMsg').textContent = (r.name ? r.name + ': ' : '') + (E[r.error] || 'خطای نامشخص: ' + (r.error || 'بدون جزئیات'));
 }
 
 function done(r) {
