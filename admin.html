@@ -133,8 +133,8 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <form id="fAdd" class="row">
           <label class="field-label" for="an">نام و نام خانوادگی</label>
           <input id="an" placeholder="مثلاً علی رضایی" autocomplete="name" required>
-          <label class="field-label" for="ap">رمز شخصی حضور و غیاب (۴ تا ۶ رقم)</label>
-          <input id="ap" type="password" placeholder="PIN پرسنل" inputmode="numeric" pattern="[0-9۰-۹٠-٩]{4,6}" maxlength="6" autocomplete="new-password" required dir="ltr">
+          <label class="field-label" for="ap">کد پرسنلی (۴ تا ۶ رقم)</label>
+          <input id="ap" type="password" placeholder="کد پرسنلی" inputmode="numeric" pattern="[0-9۰-۹٠-٩]{4,6}" maxlength="6" autocomplete="new-password" required dir="ltr">
           <button type="submit">ثبت پرسنل</button>
         </form>
         <p class="s" id="emsg" role="status" aria-live="polite"></p>
@@ -199,7 +199,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         <button type="button" class="g" id="exportReport">خروجی CSV</button>
       </div>
       <p class="s" id="reportMsg"></p>
-      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>دستگاه ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
       <h2>درخواست‌های اصلاح در انتظار بررسی</h2>
       <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
       <p class="s" id="requestMsg"></p>
@@ -495,7 +495,7 @@ async function load() {
   emps = data;
   $('tb').innerHTML = data.map(e => '<tr class="' + (e.active ? '' : 'off') + '"><td>' + esc(e.full_name) +
     (e.locked_until && new Date(e.locked_until) > new Date() ? ' <span class="er">(قفل موقت)</span>' : '') +
-    '</td><td class="a" data-id="' + e.id + '"><button class="g" data-a="pin">تغییر PIN</button><button class="g" data-a="delete">حذف</button><button class="g" data-a="tgl">' + (e.active ? 'غیرفعال' : 'فعال') + '</button></td></tr>').join('') ||
+    '</td><td class="a" data-id="' + e.id + '"><button class="g" data-a="pin">تغییر کد</button><button class="g" data-a="delete">حذف</button><button class="g" data-a="tgl">' + (e.active ? 'غیرفعال' : 'فعال') + '</button></td></tr>').join('') ||
     '<tr><td class="m">هنوز کسی اضافه نشده.</td></tr>';
 }
 $('fAdd').onsubmit = async e => {
@@ -503,13 +503,13 @@ $('fAdd').onsubmit = async e => {
   const {error} = await sb.rpc('admin_create_employee', {p_name: $('an').value, p_pin: fa2en($('ap').value.trim())});
   if (error) { say('emsg', fe(error.message)); return; }
   $('an').value = $('ap').value = '';
-  say('emsg', 'پرسنل با موفقیت اضافه شد. برای ثبت حضور از تگ NFC مشترک استفاده می‌شود.', 1); load();
+  say('emsg', 'پرسنل با موفقیت اضافه شد. ', 1); load();
 };
 $('tb').onclick = async e => {
   const b = e.target.closest('button'); if (!b) return;
   const x = emps.find(v => v.id === b.parentNode.dataset.id), a = b.dataset.a; let r;
   if (a === 'pin') {
-    const p = prompt('پین جدید برای ' + x.full_name + ' (۴ تا ۶ رقم):'); if (!p) return;
+    const p = prompt('کد جدید برای ' + x.full_name + ' (۴ تا ۶ رقم):'); if (!p) return;
     r = await sb.rpc('admin_reset_pin', {p_employee: x.id, p_pin: fa2en(p.trim())});
   }
   if (a === 'tgl') {
@@ -538,6 +538,23 @@ const reportDateKey = v => {
 const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
   timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short'
 }) : '—';
+function deviceLabel(info) {
+  const ua = info && info.user_agent ? String(info.user_agent) : '';
+  if (!ua) return 'ثبت نشده';
+  let device = 'دستگاه نامشخص';
+  if (/iPhone/i.test(ua)) device = 'iPhone';
+  else if (/iPad/i.test(ua)) device = 'iPad';
+  else if (/Android/i.test(ua)) {
+    const model = ua.match(/Android[^;]*;\\s*([^;)]+)/i);
+    device = model && !/^(?:wv|Build|Linux)/i.test(model[1]) ? 'Android - ' + model[1].trim() : 'گوشی Android';
+  } else if (/Macintosh|Mac OS/i.test(ua)) device = 'Mac';
+  else if (/Windows/i.test(ua)) device = 'Windows';
+  else if (/Linux/i.test(ua)) device = 'Linux';
+  let browser = /Edg\\//.test(ua) ? 'Edge' : /Firefox\\//.test(ua) ? 'Firefox' :
+    /CriOS\\//.test(ua) ? 'Chrome iOS' : /Chrome\\//.test(ua) ? 'Chrome' :
+    /Safari\\//.test(ua) ? 'Safari' : 'مرورگر نامشخص';
+  return device + ' / ' + browser;
+}
 function fillReportEmployees() {
   $('reportEmployee').innerHTML = '<option value="">همه کارکنان</option>' +
     emps.map(e => '<option value="' + e.id + '">' + esc(e.full_name) + '</option>').join('');
@@ -559,12 +576,15 @@ async function loadReport() {
       const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
       const duration = mins === null ? 'باز' : Math.floor(mins/60) + 'ساعت و ' + (mins%60) + 'دقیقه';
       const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی');
+      const inDevice = deviceLabel(r.check_in_device_info);
+      const outDevice = deviceLabel(r.check_out_device_info);
+      const deviceCell = '<div title="اطلاعات دستگاه از مرورگر ارسال شده و قابل جعل است"><small>ورود: ' + esc(inDevice) + '</small><br><small>خروج: ' + esc(outDevice) + '</small></div>';
       return '<tr><td>' + esc(names.get(r.employee_id) || 'کارمند حذف‌شده') + '</td><td>' +
         reportFaTime(r.check_in) + '</td><td>' + reportFaTime(r.check_out) + '</td><td>' +
-        duration + '</td><td>' + status + '</td><td class="a" data-record="' + r.id + '">' +
+        duration + '</td><td>' + status + '</td><td>' + deviceCell + '</td><td class="a" data-record="' + r.id + '">' +
         '<button class="g" data-report-action="edit">اصلاح</button>' +
         '<button class="g" data-report-action="delete">حذف</button></td></tr>';
-    }).join('') : '<tr><td colspan="6" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
     say('reportMsg', 'تعداد رکوردهای نمایش‌داده‌شده: ' + filtered.length, 1);
     reportCache = filtered;
   } catch (err) {
@@ -642,8 +662,9 @@ $('reportRows').onclick = async e => {
 $('exportReport').onclick = () => {
   if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
   const names = new Map(emps.map(e => [e.id, e.full_name]));
-  const rows = [['employee','check_in','check_out','needs_review','edited'], ...reportCache.map(r => [
-    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited
+  const rows = [['employee','check_in','check_out','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => [
+    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited,
+    deviceLabel(r.check_in_device_info), deviceLabel(r.check_out_device_info)
   ])];
   const csvCell = v => {
     const raw = String(v ?? '');
