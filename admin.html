@@ -289,9 +289,31 @@ $('toForgot').onclick = () => view('forgot');
 $('toLogin').onclick = () => view('auth');
 $('fForgot').onsubmit = async e => {
   e.preventDefault();
-  const {error} = await sb.auth.resetPasswordForEmail($('fe').value.trim(), {redirectTo: location.origin + location.pathname + location.search});
-  error ? say('fmsg', 'ارسال ایمیل ممکن نشد: ' + error.message)
-        : say('fmsg', 'اگر این ایمیل ثبت شده باشد، لینک تغییر رمز برایش ارسال شد.', 1);
+  const form = $('fForgot');
+  const button = form.querySelector('button[type="submit"],button:not([type])');
+  const email = $('fe').value.trim();
+  if (button) button.disabled = true;
+  say('fmsg', 'در حال ارسال درخواست بازیابی رمز...', true);
+  // Always return to the published GitHub Pages app, even if the request
+  // was initiated from localhost or a local preview.
+  const appUrl = 'https://arghavan-mobile.github.io/Entry-and-Exit-Records/admin.html';
+  const recoveryRole = expectedRole || 'store_manager';
+  const redirectTo = appUrl + '?role=' + encodeURIComponent(recoveryRole);
+  try {
+    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo});
+    if (error) {
+      const msg = /over_email_send_rate_limit|after \\d+ seconds|429/i.test(error.message)
+        ? 'برای جلوگیری از ارسال ناخواسته، درخواست بازیابی اخیراً ارسال شده است. لطفاً حدود ۶۰ ثانیه صبر کن و فقط یک‌بار دیگر درخواست بده.'
+        : 'ارسال درخواست بازیابی ناموفق بود: ' + error.message;
+      say('fmsg', msg);
+    } else {
+      say('fmsg', 'درخواست ارسال شد. صندوق ورودی و پوشه هرزنامه را بررسی کن. اگر ایمیل نیامد، حداقل ۶۰ ثانیه صبر کن و فقط یک‌بار دیگر درخواست بده.', true);
+    }
+  } catch (error) {
+    say('fmsg', 'ارتباط با سرویس بازیابی رمز برقرار نشد: ' + (error.message || error));
+  } finally {
+    if (button) button.disabled = false;
+  }
 };
 async function setPw(pw, id) {
   if (pw.length < 8) { say(id, 'رمز باید حداقل ۸ کاراکتر باشد.'); return false; }
