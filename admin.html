@@ -545,14 +545,14 @@ function deviceLabel(info) {
   if (/iPhone/i.test(ua)) device = 'iPhone';
   else if (/iPad/i.test(ua)) device = 'iPad';
   else if (/Android/i.test(ua)) {
-    const model = ua.match(/Android[^;]*;\\s*([^;)]+)/i);
+    const model = ua.match(/Android[^;]*;\s*([^;)]+)/i);
     device = model && !/^(?:wv|Build|Linux)/i.test(model[1]) ? 'Android - ' + model[1].trim() : 'گوشی Android';
   } else if (/Macintosh|Mac OS/i.test(ua)) device = 'Mac';
   else if (/Windows/i.test(ua)) device = 'Windows';
   else if (/Linux/i.test(ua)) device = 'Linux';
-  let browser = /Edg\\//.test(ua) ? 'Edge' : /Firefox\\//.test(ua) ? 'Firefox' :
-    /CriOS\\//.test(ua) ? 'Chrome iOS' : /Chrome\\//.test(ua) ? 'Chrome' :
-    /Safari\\//.test(ua) ? 'Safari' : 'مرورگر نامشخص';
+  let browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' :
+    /CriOS\//.test(ua) ? 'Chrome iOS' : /Chrome\//.test(ua) ? 'Chrome' :
+    /Safari\//.test(ua) ? 'Safari' : 'مرورگر نامشخص';
   return device + ' / ' + browser;
 }
 function fillReportEmployees() {
