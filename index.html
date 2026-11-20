@@ -44,7 +44,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   <section id="home">
     <div class="clock" id="clk"></div>
     <div class="m" id="dt"></div>
-    <p class="hint" id="hint">برای ثبت ورود یا خروج، تگ NFC مغازه را لمس کنید.</p>
+    <p class="hint" id="hint">برای ثبت ورود یا خروج، کد پرسنلی خود را وارد کنید.</p>
     <p class="err" id="hmsg"></p>
     <div class="row">
       <button id="mClock">ثبت ورود / خروج</button>
@@ -60,7 +60,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   </section>
 
   <section id="pinv" hidden>
-    <p class="hint">کد پرسنلی یا پین خود را وارد کنید</p>
+    <p class="hint">کد پرسنلی خود را وارد کنید</p>
     <input id="pin" class="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off" aria-label="پین">
     <p class="err" id="perr"></p>
     <div class="row"><button id="ok">تأیید</button><button id="cancel" class="g">انصراف</button></div>
@@ -102,8 +102,8 @@ const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
 const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), res: $('res'), rec: $('rec')};
-let mode = 'clock', qr = '', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
-const kioskToken = new URLSearchParams(location.search).get('kiosk') || '';
+let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
+
 
 // ---------- ابزارها ----------
 const fa = n => Number(n).toLocaleString('fa-IR');
@@ -137,13 +137,12 @@ function setMode(m) {
   mode = m;
   $('mClock').className = m === 'clock' ? '' : 'g';
   $('mRec').className = m === 'rec' ? '' : 'g';
-  // راهنمای QR حذف شده؛ مسیر ثبت حضور به NFC منتقل خواهد شد.
   $('hint').textContent = m === 'clock'
-    ? (kioskToken ? 'تگ مغازه شناسایی شد؛ برای ادامه پین خود را وارد کنید.' : 'برای ثبت ورود یا خروج، تگ NFC مغازه را لمس کنید.')
-    : 'برای مشاهده سوابق، پین خود را وارد کنید.';
+    ? 'برای ثبت ورود یا خروج، کد پرسنلی خود را وارد کنید.'
+    : 'برای مشاهده سوابق، کد پرسنلی خود را وارد کنید.';
 }
 function home(msg) {
-  qr = ''; pass = '';
+  pass = '';
   show('home'); setMode('clock');
   $('hmsg').textContent = msg || '';
   idle(msg ? 8 : 0);
@@ -157,11 +156,10 @@ setInterval(() => {
   
 }, 1000);
 
-// ---------- مسیر NFC ---------- 
+// ---------- شروع فرایند ثبت حضور ----------
 $('mClock').onclick = () => {
-  setMode('clock');
-  if (!kioskToken) $('hmsg').textContent = 'ابتدا تگ NFC مشترک مغازه را لمس کنید.';
-  else { $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent=''; show('pin'); idle(45); }
+  setMode('clock'); $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent='';
+  $('pin').focus(); show('pin'); idle(45);
 };
 $('mRec').onclick = () => setMode('rec');
 $('ownerLogin').onclick = () => { location.href = 'admin.html?role=owner'; };
@@ -171,11 +169,10 @@ $('cancel').onclick = () => home();
 // ---------- ارسال پین ----------
 async function submitPin() {
   const pin = fa2en($('pin').value.trim());
-  if (!/^\d{4,6}$/.test(pin)) { $('perr').textContent = 'پین باید ۴ تا ۶ رقم باشد.'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { $('perr').textContent = 'کد پرسنلی باید ۴ تا ۶ رقم باشد.'; return; }
   $('ok').disabled = true; idle(30);
   try {
     if (mode === 'clock') {
-      if (!kioskToken) { $('perr').textContent = 'تگ NFC مغازه شناسایی نشد. دوباره تگ را لمس کنید.'; return; }
       pass = pin;
       staffName = 'کارمند';
       $('staffTitle').textContent = 'پرسنل: ' + staffName;
@@ -196,13 +193,12 @@ async function submitPin() {
 $('ok').onclick = submitPin;
 $('backPin').onclick = () => { show('pin'); $('perr').textContent=''; };
 async function submitAttendance(action) {
-  if (!kioskToken) { $('actionMsg').textContent='تگ NFC معتبر نیست.'; return; }
   if (!navigator.geolocation) { $('actionMsg').textContent='مرورگر GPS را پشتیبانی نمی‌کند.'; return; }
   $('doIn').disabled=$('doOut').disabled=true;
   $('actionMsg').textContent='در حال بررسی موقعیت فروشگاه...';
   try {
     const pos=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:20000,maximumAge:0}));
-    const r=await rpc('kiosk_attendance_nfc',{p_tag_token:kioskToken,p_pin:pass,p_action:action,p_lat:pos.coords.latitude,p_lon:pos.coords.longitude,p_accuracy:pos.coords.accuracy});
+    const r=await rpc('kiosk_attendance_code',{p_pin:pass,p_action:action,p_lat:pos.coords.latitude,p_lon:pos.coords.longitude,p_accuracy:pos.coords.accuracy,p_user_agent:navigator.userAgent||''});
     r.ok ? done(r) : fail(r);
   } catch(e) {
     $('actionMsg').textContent=e&&e.code===1?'اجازه دسترسی به موقعیت مکانی داده نشد.':e&&e.code===2?'موقعیت GPS در دسترس نیست.':'دریافت GPS ناموفق بود؛ دوباره تلاش کنید.';
@@ -214,21 +210,19 @@ $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); 
 
 function fail(r) {
   const E = {
-    invalid_card: 'کارت نامعتبر یا غیرفعال است.',
-    invalid_tag: 'تگ NFC معتبر نیست.',
     already_checked_in: 'برای شما ورود باز وجود دارد؛ ابتدا خروج را ثبت کنید.',
     no_open_shift: 'برای شما ورود بازی وجود ندارد؛ ابتدا ورود را ثبت کنید.',
     shift_needs_review: 'مدت شیفت از حد مجاز گذشته و نیازمند بررسی مدیر است.',
-    invalid_pin: 'پین اشتباه یا نامعتبر است.',
+    invalid_pin: 'کد پرسنلی اشتباه یا نامعتبر است.',
     duplicate_pin: 'این پین برای بیش از یک کارمند ثبت شده؛ مدیر باید آن را اصلاح کند.',
     invalid_location: 'دقت GPS کافی نیست. مکان‌یابی را روشن کنید و دوباره تلاش کنید.',
     outside_geofence: 'شما خارج از محدوده مجاز ۵۰ متری فروشگاه هستید.',
-    locked: 'به‌دلیل پین اشتباه، این کارت چند دقیقه قفل شد. بعداً دوباره امتحان کنید یا به مدیر بگویید.',
+    locked: 'به‌دلیل ورود ناموفق چندباره، دسترسی شما موقتاً قفل شده است. بعداً دوباره امتحان کنید یا به مدیر بگویید.',
     too_soon: 'ثبت قبلی شما همین چند لحظه پیش انجام شد.'
   };
   if (r.error === 'wrong_pin') {
     $('pin').value = ''; $('pin').focus();
-    $('perr').textContent = 'پین اشتباه است. ' + fa(r.attempts_left) + ' تلاش باقی مانده.';
+    $('perr').textContent = 'کد پرسنلی اشتباه است. ' + fa(r.attempts_left) + ' تلاش باقی مانده.';
     return;
   }
   home((r.name ? r.name + ': ' : '') + (E[r.error] || 'خطای نامشخص. دوباره تلاش کنید.'));
@@ -311,8 +305,8 @@ $('tb').onclick = async e => {
         reason_too_long: 'دلیل درخواست نباید بیشتر از ۵۰۰ حرف باشد.',
         daily_request_limit_reached: 'سقف ۱۰ درخواست اصلاح در ۲۴ ساعت پر شده است.',
         no_changes_requested: 'زمان‌های جدید با رکورد فعلی تفاوتی ندارند.',
-        wrong_pin: 'پین تأیید نشد. دوباره وارد سوابق شوید.',
-        locked: 'به دلیل تلاش ناموفق، کارت موقتاً قفل شده است.'
+        wrong_pin: 'کد پرسنلی تأیید نشد. دوباره وارد سوابق شوید.',
+        locked: 'به دلیل تلاش ناموفق، دسترسی موقتاً قفل شده است.'
       };
       $('reqmsg').textContent = messages[result.error] || 'درخواست ثبت نشد: ' + result.error;
       b.disabled = false;
@@ -336,13 +330,6 @@ if (!C.SUPABASE_URL || C.SUPABASE_URL.includes('PASTE')) {
   // عنوان برند ثابت می‌ماند و از تنظیمات سرور بازنویسی نمی‌شود.
 }
 home($('hmsg').textContent);
-if (kioskToken) {
-  setMode('clock');
-  $('hmsg').textContent = '';
-  $('pin').value = '';
-  show('pin');
-  idle(45);
-}
 </script>
 </body>
 </html>
