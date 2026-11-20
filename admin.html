@@ -129,7 +129,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
     <div id="p1">
       <section class="onboard-panel" aria-labelledby="employeeStartTitle">
         <h2 id="employeeStartTitle">شروع کار: ثبت مشخصات اولین پرسنل</h2>
-        <p class="m">برای افزودن همکار، نام و نام خانوادگی و PIN شخصی ۴ تا ۶ رقمی او را وارد کن. ثبت پرسنل بدون کارت یا QR انجام می‌شود؛ حضور و غیاب با تگ NFC مشترک فروشگاه است.</p>
+        <p class="m">برای افزودن همکار، نام و نام خانوادگی و PIN شخصی ۴ تا ۶ رقمی او را وارد کن.</p>
         <form id="fAdd" class="row">
           <label class="field-label" for="an">نام و نام خانوادگی</label>
           <input id="an" placeholder="مثلاً علی رضایی" autocomplete="name" required>
@@ -490,7 +490,7 @@ $('fSettings').onsubmit = async e => {
 
 // ---------- پرسنل ----------
 async function load() {
-  const {data, error} = await sb.from('employees').select('id,full_name,active,locked_until').order('full_name');
+  const {data, error} = await sb.from('employees').select('id,full_name,active,locked_until').eq('active', true).order('full_name');
   if (error) { say('emsg', 'دریافت لیست ناموفق بود: ' + error.message); return; }
   emps = data;
   $('tb').innerHTML = data.map(e => '<tr class="' + (e.active ? '' : 'off') + '"><td>' + esc(e.full_name) +
