@@ -807,13 +807,16 @@ function attendanceWorkMetrics(record, schedule=workSchedule) {
   if(epochs.length>1 && Math.abs(start.getTime()-epochs[1])<Math.abs(start.getTime()-epochs[0]))index=1;
   const expectedStart=epochs[index], expectedEnd=base.getTime()+ends[index]*60000;
   const inMs=start.getTime(), outMs=end?end.getTime():null;
-  const actual=Math.max(0,Math.round(((outMs??inMs)-inMs)/60000));
   const late=Math.max(0,Math.round((inMs-expectedStart)/60000));
   const early=outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
-  const overtime=outMs===null?0:Math.max(0,Math.round((outMs-expectedEnd)/60000));
+  const crossesBreak=outMs!==null && index===0 && outMs>=epochs[1];
+  const overlap=outMs===null?0:Math.max(0,Math.round((Math.min(outMs,expectedEnd)-Math.max(inMs,expectedStart))/60000));
+  const beforeStart=Math.max(0,Math.round((expectedStart-inMs)/60000));
+  const afterEnd=outMs===null?0:(!crossesBreak?Math.max(0,Math.round((outMs-expectedEnd)/60000)):0);
+  const overtime=beforeStart+afterEnd;
   const scheduled=ends[index]-starts[index];
-  const worked=Math.max(0,actual);
-  return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,
+  const worked=overlap+overtime;
+  return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,crossesBreak,
     expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd)};
 }
 function dailyWorkMetrics(records) {
@@ -880,7 +883,7 @@ async function loadReport() {
       const late = m ? fmtMinutes(m.late) : '—';
       const early = m ? fmtMinutes(m.early) : '—';
       const overtime = m ? fmtMinutes(m.overtime) : '—';
-      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی');
+      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (m && m.crossesBreak ? '<span class="er">ثبت عبوری از زمان استراحت؛ بررسی شود</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی'));
       const inDevice = deviceLabel(r.check_in_device_info);
       const outDevice = deviceLabel(r.check_out_device_info);
       const deviceCell = '<div title="اطلاعات دستگاه از مرورگر ارسال شده و قابل جعل است"><small>ورود: ' + esc(inDevice) + '</small><br><small>خروج: ' + esc(outDevice) + '</small></div>';
@@ -1011,7 +1014,7 @@ $('exportReportExcel').onclick = async () => {
     ...reportCache.map(r => {
       const m=attendanceWorkMetrics(r);
       const daily=dailyMetrics.get(r.employee_id+'|'+reportDateKey(r.check_in));
-      const status = r.needs_review ? 'نیازمند بررسی' : (r.edited ? 'اصلاح‌شده' : 'عادی');
+      const status = r.needs_review ? 'نیازمند بررسی' : (m && m.crossesBreak ? 'ثبت عبوری از زمان استراحت؛ بررسی شود' : (r.edited ? 'اصلاح‌شده' : 'عادی'));
       return [
         names.get(r.employee_id) || 'کارمند حذف‌شده', reportDateKey(r.check_in),
         reportFaTime(r.check_in), reportFaTime(r.check_out),m?'نوبت '+m.shift:'—',
