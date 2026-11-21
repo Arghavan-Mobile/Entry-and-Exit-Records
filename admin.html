@@ -12,6 +12,8 @@ body{margin:0;font-family:Tahoma,"Segoe UI",sans-serif;background:var(--bg);colo
 main{width:100%;max-width:960px;margin:0 auto;background:#fff;border-radius:24px;padding:24px;border-top:8px solid var(--b);min-width:0}
 .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .top img{width:46px;height:auto}.top h1{font-size:18px;margin:0;flex:1}.top #who{font-size:13px;overflow-wrap:anywhere}
+.home-link{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 13px;border:1px solid var(--ln);border-radius:10px;background:#f7f6fc;color:var(--b);font-weight:700;text-decoration:none;white-space:nowrap}
+.home-link:focus,.home-link:hover{background:#eeecfa}
 .app-toolbar{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
 .app-toolbar .tabs{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
 .tabs button{width:100%;min-width:0;white-space:normal;line-height:1.4}
@@ -94,7 +96,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
 </head>
 <body>
 <main>
-  <div class="top"><img src="logo.png" alt="ارغوان"><h1 id="appTitle">پنل مدیریت</h1><span class="m" id="who"></span></div>
+  <div class="top"><img src="logo.png" alt="ارغوان"><h1 id="appTitle">پنل مدیریت</h1><a class="home-link" href="./index.html">صفحه نخست</a><span class="m" id="who"></span></div>
 
   <section id="v-auth" class="box" hidden>
     <h2 id="loginTitle">ورود به پنل مدیریت</h2>
