@@ -289,6 +289,12 @@ th{background:#f4f2fc}
       </div>
       <p class="s" id="reportMsg"></p>
       <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>کارکرد خالص</th><th>تأخیر</th><th>تعجیل خروج</th><th>اضافه‌کاری</th><th>وضعیت</th><th>دستگاه ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+      <h2>خلاصه ماهانه پرسنل</h2>
+      <p class="m">بازه انتخاب‌شده بالا را به تفکیک ماه و پرسنل جمع‌بندی می‌کند. غیبت فقط در روز کاری تعریف‌شده و پس از کسر تعطیلی و مرخصی تأییدشده محاسبه می‌شود.</p>
+      <button type="button" class="g" id="loadMonthlyReport">محاسبه خلاصه ماهانه</button>
+      <button type="button" class="g" id="exportMonthlyReport">خروجی اکسل ماهانه</button>
+      <p class="s" id="monthlyMsg"></p>
+      <div class="tw"><table><thead><tr><th>ماه</th><th>پرسنل</th><th>روز کاری مورد انتظار</th><th>ساعت موظفی</th><th>حضور</th><th>مرخصی</th><th>غیبت</th><th>کارکرد خالص</th><th>تأخیر</th><th>تعجیل</th><th>اضافه‌کاری</th></tr></thead><tbody id="monthlyRows"><tr><td colspan="11" class="m">برای مشاهده، محاسبه خلاصه ماهانه را بزن.</td></tr></tbody></table></div>
       <h2>درخواست‌های اصلاح در انتظار بررسی</h2>
       <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
       <p class="s" id="requestMsg"></p>
@@ -318,6 +324,20 @@ th{background:#f4f2fc}
           <label style="flex:1;min-width:130px">پایان نوبت دوم<input id="setShift2End" type="time" required></label>
         </div>
         <p class="m">مقادیر پیش‌فرض: ۱۰:۳۰ تا ۱۴:۰۰ و ۱۶:۰۰ تا ۲۲:۰۰</p>
+        <h3 style="margin:14px 0 4px">ثبت نسخه جدید مقررات ساعت کاری</h3>
+        <p class="m">تغییرات فقط از تاریخ مؤثر اعمال می‌شوند و محاسبات روزهای قبل با نسخه قبلی باقی می‌مانند. انتخاب پرسنل اختیاری است؛ خالی یعنی مقررات عمومی.</p>
+        <label>تاریخ شروع اجرای این مقررات<input id="setScheduleEffective" type="date" required></label>
+        <label>مقررات اختصاصی پرسنل (اختیاری)<select id="setScheduleEmployee"><option value="">همه پرسنل (مقررات عمومی)</option></select></label>
+        <div class="m">روزهای کاری هفته (روزهای انتخاب‌نشده تعطیل هفتگی محسوب می‌شوند):</div>
+        <div class="row" id="workdayChoices" style="gap:10px;flex-wrap:wrap">
+          <label><input type="checkbox" value="6" checked> شنبه</label><label><input type="checkbox" value="0" checked> یکشنبه</label>
+          <label><input type="checkbox" value="1" checked> دوشنبه</label><label><input type="checkbox" value="2" checked> سه‌شنبه</label>
+          <label><input type="checkbox" value="3" checked> چهارشنبه</label><label><input type="checkbox" value="4" checked> پنجشنبه</label>
+          <label><input type="checkbox" value="5" checked> جمعه</label>
+        </div>
+        <h3 style="margin:14px 0 4px">تعطیلات رسمی و تعطیلی فروشگاه</h3>
+        <div class="row"><label style="flex:1">تاریخ تعطیلی<input id="holidayDate" type="date"></label><label style="flex:2">عنوان تعطیلی<input id="holidayTitle" maxlength="120" placeholder="مثلاً تعطیلی رسمی"></label><button type="button" class="g" id="saveHoliday">ثبت تعطیلی</button></div>
+        <p class="s" id="calendarMsg"></p><div class="tw"><table><thead><tr><th>تاریخ</th><th>عنوان</th><th>عملیات</th></tr></thead><tbody id="holidayRows"><tr><td colspan="3">در حال بارگذاری...</td></tr></tbody></table></div>
         <label>دستورالعمل اختیاری برای پرسنل (حداکثر ۲۰۰۰ حرف)<textarea id="setInstruction" maxlength="2000" rows="5" placeholder="در صورت نیاز، قوانین و توضیحات حضور و غیاب را بنویسید؛ خالی گذاشتن یعنی بدون دستورالعمل اضافی."></textarea></label>
         <p class="s" id="settingsMsg"></p>
         <button>ذخیره تنظیمات</button>
@@ -477,7 +497,7 @@ async function boot() {
   });
   $('p1').hidden = false;
   $('an').focus({preventScroll:true});
-  load(); showBk(); loadSettings();
+  load().then(()=>loadSettings()).catch(err=>say('settingsMsg','بارگذاری تنظیمات ناموفق بود: '+(err.message||err))); showBk();
   if (ownerRole === true) loadOwnerLifecycle();
 }
 
@@ -594,10 +614,25 @@ async function loadSettings() {
   $('setAttempts').value = data.max_pin_attempts;
   $('setLock').value = data.lock_minutes;
   $('setInstruction').value = data.attendance_instruction || '';
-  $('setShift1Start').value = String(data.shift1_start || '10:30:00').slice(0,5);
-  $('setShift1End').value = String(data.shift1_end || '14:00:00').slice(0,5);
-  $('setShift2Start').value = String(data.shift2_start || '16:00:00').slice(0,5);
-  $('setShift2End').value = String(data.shift2_end || '22:00:00').slice(0,5);
+  $('setScheduleEffective').value = reportTodayISO();
+  $('holidayDate').value = reportTodayISO();
+  await loadWorkSchedule();
+  const todaySchedule = scheduleFor(null, reportTodayISO());
+  $('setShift1Start').value = todaySchedule.shift1_start;
+  $('setShift1End').value = todaySchedule.shift1_end;
+  $('setShift2Start').value = todaySchedule.shift2_start;
+  $('setShift2End').value = todaySchedule.shift2_end;
+  $('setScheduleEmployee').innerHTML = '<option value="">همه پرسنل (مقررات عمومی)</option>' + emps.map(x=>'<option value="'+x.id+'">'+esc(x.full_name)+'</option>').join('');
+  const applyScheduleFields=()=>{
+    const s=scheduleFor($('setScheduleEmployee').value||null,$('setScheduleEffective').value||reportTodayISO());
+    $('setShift1Start').value=s.shift1_start;$('setShift1End').value=s.shift1_end;
+    $('setShift2Start').value=s.shift2_start;$('setShift2End').value=s.shift2_end;
+    $('workdayChoices').querySelectorAll('input').forEach(x=>x.checked=s.workdays.includes(Number(x.value)));
+  };
+  $('setScheduleEmployee').onchange=applyScheduleFields;
+  $('setScheduleEffective').onchange=applyScheduleFields;
+  applyScheduleFields();
+  await loadWorkHolidays();
 }
 $('fSettings').onsubmit = async e => {
   e.preventDefault();
@@ -623,14 +658,23 @@ $('fSettings').onsubmit = async e => {
       schedule.p_shift2_start >= schedule.p_shift2_end) {
     say('settingsMsg','بازه‌های کاری معتبر نیستند؛ شروع و پایان هر نوبت و فاصله بین دو نوبت را بررسی کن.'); return;
   }
+  const workdays=[...$('workdayChoices').querySelectorAll('input:checked')].map(x=>Number(x.value));
+  if(!workdays.length){say('settingsMsg','حداقل یک روز کاری انتخاب کن.');return;}
+  const scheduleResult = await sb.rpc('admin_save_work_schedule', {
+    p_employee_id:$('setScheduleEmployee').value || null,
+    p_effective_from:$('setScheduleEffective').value,
+    p_shift1_start:schedule.p_shift1_start,p_shift1_end:schedule.p_shift1_end,
+    p_shift2_start:schedule.p_shift2_start,p_shift2_end:schedule.p_shift2_end,
+    p_workdays:workdays
+  });
+  if (scheduleResult.error) { say('settingsMsg', 'ثبت نسخه مقررات ناموفق بود: ' + scheduleResult.error.message); return; }
   const {error} = await sb.rpc('admin_update_settings', args);
-  if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
-  const scheduleResult = await sb.rpc('admin_update_work_schedule', schedule);
-  if (scheduleResult.error) { say('settingsMsg', 'تنظیمات عمومی ذخیره شد اما ساعت کاری ذخیره نشد: ' + scheduleResult.error.message); return; }
+  if (error) { say('settingsMsg', 'نسخه مقررات ثبت شد اما تنظیمات عمومی ذخیره نشد: ' + error.message); return; }
   const instructionResult = await sb.rpc('admin_update_attendance_instruction', {p_instruction: $('setInstruction').value});
   if (instructionResult.error) { say('settingsMsg', 'ساعت کاری ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
+  await loadWorkSchedule();
   reportLoaded = false;
-  say('settingsMsg', 'ساعت کاری و سایر تنظیمات ذخیره و در گزارش ممیزی ثبت شدند.', 1);
+  say('settingsMsg', 'نسخه مقررات از تاریخ انتخاب‌شده ثبت شد؛ سوابق قبل از آن تغییر نمی‌کنند. سایر تنظیمات هم ذخیره شدند.', 1);
 };
 
 // ---------- پرسنل ----------
@@ -778,24 +822,38 @@ const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
 }) : '—';
 // ---------- محاسبهٔ کارکرد بر اساس دو نوبت کاری روزانه ----------
 let workSchedule = {shift1_start:'10:30',shift1_end:'14:00',shift2_start:'16:00',shift2_end:'22:00'};
+let workScheduleVersions = [];
 async function loadWorkSchedule() {
-  const {data,error}=await sb.from('settings').select('shift1_start,shift1_end,shift2_start,shift2_end').eq('id',1).single();
+  const {data,error}=await sb.from('work_schedule_versions')
+    .select('id,employee_id,effective_from,shift1_start,shift1_end,shift2_start,shift2_end,workdays')
+    .order('effective_from',{ascending:true});
   if(error) throw error;
-  workSchedule={
-    shift1_start:String(data.shift1_start||'10:30:00').slice(0,5),
-    shift1_end:String(data.shift1_end||'14:00:00').slice(0,5),
-    shift2_start:String(data.shift2_start||'16:00:00').slice(0,5),
-    shift2_end:String(data.shift2_end||'22:00:00').slice(0,5)
-  };
+  workScheduleVersions=data||[];
+  if(workScheduleVersions.length){
+    const global=workScheduleVersions.filter(x=>!x.employee_id).sort((a,b)=>a.effective_from.localeCompare(b.effective_from));
+    if(global.length)workSchedule=global[global.length-1];
+  }
   return workSchedule;
+}
+function scheduleFor(employeeId,day) {
+  const eligible=workScheduleVersions.filter(x=>x.effective_from<=day);
+  const personal=employeeId?eligible.filter(x=>x.employee_id===employeeId).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0]:null;
+  const global=eligible.filter(x=>!x.employee_id).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0];
+  const s=personal||global||workSchedule;
+  return {shift1_start:String(s.shift1_start||'10:30:00').slice(0,5),
+    shift1_end:String(s.shift1_end||'14:00:00').slice(0,5),
+    shift2_start:String(s.shift2_start||'16:00:00').slice(0,5),
+    shift2_end:String(s.shift2_end||'22:00:00').slice(0,5),
+    workdays:s.workdays||[0,1,2,3,4,5,6],version_id:s.id||null};
 }
 const scheduleMinutes = t => {const [h,m]=String(t).split(':').map(Number);return h*60+m;};
 const fmtMinutes = n => {
   n=Math.max(0,Math.round(n||0));
   return Math.floor(n/60)+'ساعت و '+(n%60)+'دقیقه';
 };
-function attendanceWorkMetrics(record, schedule=workSchedule) {
+function attendanceWorkMetrics(record, schedule=null) {
   if(!record || !record.check_in) return null;
+  schedule=schedule||scheduleFor(record.employee_id,reportDateKey(record.check_in));
   const start=new Date(record.check_in), end=record.check_out?new Date(record.check_out):null;
   if(!Number.isFinite(start.getTime()) || (end && (!Number.isFinite(end.getTime())||end<start)))return null;
   const dateKey=reportDateKey(record.check_in);
@@ -817,7 +875,7 @@ function attendanceWorkMetrics(record, schedule=workSchedule) {
   const scheduled=ends[index]-starts[index];
   const worked=overlap+overtime;
   return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,crossesBreak,
-    expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd)};
+    expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd),scheduleVersionId:schedule.version_id||null};
 }
 function dailyWorkMetrics(records) {
   const days=new Map();
@@ -902,6 +960,80 @@ async function loadReport() {
     say('reportMsg', 'گزارش بارگذاری نشد: ' + (err.message || err));
   }
 }
+
+async function loadWorkHolidays(){
+  const {data,error}=await sb.from('work_holidays').select('holiday_date,title').order('holiday_date',{ascending:true});
+  if(error){say('calendarMsg','دریافت تعطیلات ناموفق بود: '+error.message);return;}
+  $('holidayRows').innerHTML=data.length?data.map(h=>'<tr><td>'+esc(h.holiday_date)+'</td><td>'+esc(h.title)+'</td><td><button type="button" class="g" data-holiday-delete="'+h.holiday_date+'">حذف</button></td></tr>').join(''):'<tr><td colspan="3">تعطیلی ثبت نشده است.</td></tr>';
+}
+$('saveHoliday').onclick=async()=>{
+ const day=$('holidayDate').value,title=$('holidayTitle').value.trim();
+ if(!day||title.length<2){say('calendarMsg','تاریخ و عنوان معتبر تعطیلی را وارد کن.');return;}
+ const {error}=await sb.rpc('admin_upsert_work_holiday',{p_holiday_date:day,p_title:title});
+ if(error){say('calendarMsg','ثبت تعطیلی ناموفق بود: '+error.message);return;}
+ $('holidayTitle').value='';say('calendarMsg','تعطیلی ثبت شد و در محاسبه غیبت لحاظ می‌شود.',true);await loadWorkHolidays();
+};
+$('holidayRows').onclick=async e=>{
+ const b=e.target.closest('button[data-holiday-delete]');if(!b)return;
+ if(!confirm('این تعطیلی از تقویم حذف شود؟'))return;
+ const {error}=await sb.rpc('admin_delete_work_holiday',{p_holiday_date:b.dataset.holidayDelete});
+ if(error){say('calendarMsg','حذف تعطیلی ناموفق بود: '+error.message);return;}
+ say('calendarMsg','تعطیلی حذف شد.',true);await loadWorkHolidays();
+};
+let monthlyReportCache=[];
+function isoDayAdd(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function isoWeekday(iso){return new Date(iso+'T12:00:00Z').getUTCDay();}
+function jalaliMonthLabel(iso){return new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',year:'numeric',month:'long'}).format(new Date(iso+'T12:00:00Z'));}
+async function buildMonthlyAttendance(){
+ const from=$('reportFrom').value,to=$('reportTo').value;
+ if(!from||!to||from>to){say('monthlyMsg','برای گزارش ماهانه بازه معتبر انتخاب کن.');return;}
+ say('monthlyMsg','در حال محاسبه گزارش ماهانه...',true);
+ const {data,error}=await sb.rpc('manager_monthly_attendance_inputs',{p_from:from,p_to:to});
+ if(error){say('monthlyMsg','دریافت داده‌های گزارش ناموفق بود: '+error.message);return;}
+ const employees=data.employees||[],records=data.records||[],schedules=data.schedules||[],holidays=new Map((data.holidays||[]).map(x=>[x.holiday_date,x.title])),leaves=data.approved_leaves||[];
+ workScheduleVersions=schedules;
+ const groups=new Map();
+ for(const e of employees){
+  for(let day=from;day<=to;day=isoDayAdd(day,1)){
+   const s=scheduleFor(e.id,day),month=day.slice(0,7),key=e.id+'|'+month;
+   const hasRecord=records.some(r=>r.employee_id===e.id&&reportDateKey(r.check_in)===day);
+   const onLeave=!hasRecord&&leaves.some(l=>l.employee_id===e.id&&l.start_date<=day&&l.end_date>=day);
+   const createdDay=reportDateKey(e.created_at);
+   if(day<createdDay)continue;
+   if(!groups.has(key))groups.set(key,{employee_id:e.id,name:e.full_name,month,expected:0,expectedMinutes:0,present:0,leave:0,absent:0,worked:0,late:0,early:0,overtime:0,open:false});
+   const g=groups.get(key),working=s.workdays.includes(isoWeekday(day))&&!holidays.has(day);
+   if(!working)continue;
+   if(e.active)g.expected++;
+   else if(!hasRecord&&!onLeave)continue;
+   const dailyExpected=(scheduleMinutes(s.shift1_end)-scheduleMinutes(s.shift1_start))+(scheduleMinutes(s.shift2_end)-scheduleMinutes(s.shift2_start));
+   if(e.active)g.expectedMinutes+=dailyExpected;
+   if(hasRecord)g.present++;
+   else if(onLeave)g.leave++;
+   else if(e.active)g.absent++;
+  }
+ }
+ for(const r of records){
+  const day=reportDateKey(r.check_in),key=r.employee_id+'|'+day.slice(0,7);
+  if(!groups.has(key))continue;
+  const m=attendanceWorkMetrics(r,scheduleFor(r.employee_id,day));if(!m)continue;
+  const g=groups.get(key);g.worked+=m.worked;g.late+=m.late;g.early+=m.early;g.overtime+=m.overtime;g.open=g.open||!m.complete;
+ }
+ monthlyReportCache=[...groups.values()].sort((a,b)=>a.month.localeCompare(b.month)||a.name.localeCompare(b.name));
+ $('monthlyRows').innerHTML=monthlyReportCache.length?monthlyReportCache.map(g=>'<tr><td>'+esc(jalaliMonthLabel(g.month+'-15'))+'</td><td>'+esc(g.name)+'</td><td>'+g.expected+'</td><td>'+fmtMinutes(g.expectedMinutes||0)+'</td><td>'+g.present+'</td><td>'+g.leave+'</td><td>'+g.absent+'</td><td>'+fmtMinutes(g.worked)+(g.open?' (رکورد باز)':'')+'</td><td>'+fmtMinutes(g.late)+'</td><td>'+fmtMinutes(g.early)+'</td><td>'+fmtMinutes(g.overtime)+'</td></tr>').join(''):'<tr><td colspan="11">داده‌ای برای این بازه وجود ندارد.</td></tr>';
+ const sum=monthlyReportCache.reduce((a,g)=>{for(const k of ['expected','present','leave','absent','worked','late','early','overtime'])a[k]+=g[k];return a;},{expected:0,present:0,leave:0,absent:0,worked:0,late:0,early:0,overtime:0});
+ say('monthlyMsg','گزارش '+monthlyReportCache.length+' ردیف | روزهای مورد انتظار: '+sum.expected+' | حضور: '+sum.present+' | مرخصی: '+sum.leave+' | غیبت: '+sum.absent+' | کارکرد خالص: '+fmtMinutes(sum.worked),true);
+}
+$('loadMonthlyReport').onclick=buildMonthlyAttendance;
+$('exportMonthlyReport').onclick=()=>{
+ if(!monthlyReportCache.length){say('monthlyMsg','ابتدا گزارش ماهانه را محاسبه کن.');return;}
+ const rows=[['ماه','پرسنل','روز کاری مورد انتظار','ساعت موظفی دقیقه','حضور','مرخصی تاییدشده','غیبت','کارکرد خالص دقیقه','تأخیر دقیقه','تعجیل دقیقه','اضافه‌کاری دقیقه'],
+ ...monthlyReportCache.map(g=>[jalaliMonthLabel(g.month+'-15'),g.name,g.expected,g.expectedMinutes||0,g.present,g.leave,g.absent,g.worked,g.late,g.early,g.overtime])];
+ const escXml=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+ const xmlRows=rows.map((r,i)=>'<Row>'+r.map(v=>'<Cell'+(i===0?' ss:StyleID="Header"':'')+'><Data ss:Type="String">'+escXml(v)+'</Data></Cell>').join('')+'</Row>').join('');
+ const book='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Header"><Font ss:Bold="1"/></Style></Styles><Worksheet ss:Name="گزارش ماهانه"><Table>'+xmlRows+'</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><DisplayRightToLeft/></WorksheetOptions></Worksheet></Workbook>';
+ const url=URL.createObjectURL(new Blob(['\ufeff'+book],{type:'application/vnd.ms-excel;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='arghavan-monthly-attendance.xls';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+
 async function loadCorrectionRequests() {
   say('requestMsg', 'در حال دریافت درخواست‌ها...', 1);
   const {data, error} = await sb.rpc('manager_list_attendance_requests');
@@ -1092,10 +1224,12 @@ function showBk() {
 $('bk').onclick = async () => {
   say('bmsg', 'در حال آماده‌سازی...', 1);
   try {
-    const d = {version: 1, exported_at: new Date().toISOString(),
+    const d = {version: 2, exported_at: new Date().toISOString(),
       employees: await all('employees', 'id,full_name,qr_token,active,created_at'),
       attendance_records: await all('attendance_records', '*'),
       audit_log: await all('audit_log', '*'),
+      work_schedule_versions: await all('work_schedule_versions', '*'),
+      work_holidays: (await sb.from('work_holidays').select('*')).data || [],
       settings: await all('settings', '*')};
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(d)], {type: 'application/json'}));
