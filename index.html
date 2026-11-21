@@ -34,6 +34,20 @@ table{width:100%;border-collapse:collapse;font-size:15px}
 th,td{padding:9px 6px;border-bottom:1px solid var(--ln)}
 th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
 .tag{font-size:12px;color:var(--out)}
+.jalali-field{margin:10px 0;text-align:right}
+.jalali-field>label{display:block;font-size:14px;margin:6px 2px}
+.jalali-date-btn{width:100%;text-align:right;background:#fff;color:var(--t);border:1px solid var(--ln)}
+.jalali-calendar{border:1px solid var(--ln);border-radius:14px;padding:10px;margin-top:7px;background:#fff}
+.jalali-cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.jalali-cal-head button{padding:7px 12px}
+.jalali-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.jalali-grid span,.jalali-grid button{min-width:0;padding:9px 2px;text-align:center;font-size:13px}
+.jalali-grid span{color:var(--m);font-weight:bold}
+.jalali-grid button{background:#fff;color:var(--t);border:1px solid transparent;padding:9px 0}
+.jalali-grid button.selected{background:var(--b);color:#fff}
+.jalali-grid button:disabled{opacity:.25}
+.jalali-grid button.today{border-color:var(--b)}
+.jalali-cal-hint{font-size:12px;color:var(--m);margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -88,8 +102,18 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
           <option value="annual">استحقاقی</option><option value="sick">استعلاجی</option><option value="unpaid">بدون حقوق</option><option value="other">سایر</option>
         </select>
       </label>
-      <label>از تاریخ <input id="leaveStart" type="date" required></label>
-      <label>تا تاریخ <input id="leaveEnd" type="date" required></label>
+      <div class="jalali-field">
+        <label for="leaveStartBtn">از تاریخ (شمسی)</label>
+        <button type="button" class="g jalali-date-btn" id="leaveStartBtn">انتخاب تاریخ شروع</button>
+        <input id="leaveStart" type="date" required hidden>
+        <div class="jalali-calendar" id="leaveStartCalendar" hidden></div>
+      </div>
+      <div class="jalali-field">
+        <label for="leaveEndBtn">تا تاریخ (شمسی)</label>
+        <button type="button" class="g jalali-date-btn" id="leaveEndBtn">انتخاب تاریخ پایان</button>
+        <input id="leaveEnd" type="date" required hidden>
+        <div class="jalali-calendar" id="leaveEndCalendar" hidden></div>
+      </div>
       <label>توضیحات و دلیل درخواست<textarea id="leaveReason" required minlength="5" maxlength="500" rows="3"></textarea></label>
       <p class="err" id="leaveMsg"></p>
       <div class="row"><button type="submit" id="sendLeave">ارسال درخواست</button><button type="button" id="cancelLeave" class="g">بازگشت</button></div>
@@ -135,6 +159,26 @@ let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
 
 // ---------- ابزارها ----------
 const fa = n => Number(n).toLocaleString('fa-IR');
+const jalaliParts = iso => {
+  const d = new Date(iso + 'T12:00:00Z');
+  const p = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn',{timeZone:'UTC',year:'numeric',month:'numeric',day:'numeric'}).formatToParts(d);
+  const o={}; p.forEach(x=>{if(x.type!=='literal')o[x.type]=Number(x.value);}); return o;
+};
+const jalaliLabel = iso => new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',day:'numeric',month:'long',year:'numeric'}).format(new Date(iso+'T12:00:00Z'));
+const isoFromUTC = d => d.toISOString().slice(0,10);
+const todayISO = () => {
+  const p=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const o={};p.forEach(x=>{if(x.type!=='literal')o[x.type]=x.value;});return o.year+'-'+o.month+'-'+o.day;
+};
+const shiftISO = (iso,days) => {const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return isoFromUTC(d);};
+const findJalaliMonthStart = iso => {
+  let d=new Date(iso+'T12:00:00Z');
+  for(let i=0;i<32;i++){const v=isoFromUTC(d);if(jalaliParts(v).day===1)return v;d.setUTCDate(d.getUTCDate()-1);}
+  return iso;
+};
+const monthMove = (iso,delta) => findJalaliMonthStart(shiftISO(findJalaliMonthStart(iso),delta*35));
+const jalaliMonthTitle = iso => new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',month:'long',year:'numeric'}).format(new Date(iso+'T12:00:00Z'));
+const jalaliWeekdays=['ش','ی','د','س','چ','پ','ج'];
 const tm = t => new Date(t).toLocaleTimeString('fa-IR', {timeZone: TZ, hour: '2-digit', minute: '2-digit'});
 const dayFmt = t => new Intl.DateTimeFormat('fa-IR', {timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric'}).format(new Date(t));
 const dur = m => { m = Math.round(m); const h = Math.floor(m / 60); return (h ? fa(h) + ' ساعت و ' : '') + fa(m % 60) + ' دقیقه'; };
@@ -251,7 +295,57 @@ async function submitAttendance(action) {
 }
 $('doIn').onclick=()=>submitAttendance('check_in');
 $('doOut').onclick=()=>submitAttendance('check_out');
-$('doLeave').onclick=()=>{ $('leaveMsg').textContent=''; $('leaveForm').reset(); show('leave'); idle(180); };
+$('doLeave').onclick=()=>{ $('leaveMsg').textContent=''; $('leaveForm').reset(); $('leaveStartCalendar').hidden=true; $('leaveEndCalendar').hidden=true; $('leaveStartBtn').textContent='انتخاب تاریخ شروع'; $('leaveEndBtn').textContent='انتخاب تاریخ پایان'; show('leave'); idle(180); };
+const calendarMonths={start:todayISO(),end:todayISO()};
+function drawJalaliCalendar(which){
+  const input=$(which==='start'?'leaveStart':'leaveEnd');
+  const box=$(which==='start'?'leaveStartCalendar':'leaveEndCalendar');
+  const selected=input.value;
+  const anchor=findJalaliMonthStart(calendarMonths[which]);
+  const first=new Date(anchor+'T12:00:00Z');
+  const offset=(first.getUTCDay()+1)%7;
+  const month=jalaliParts(anchor).month, year=jalaliParts(anchor).year;
+  const cells=[];
+  for(let i=0;i<offset;i++)cells.push('<span></span>');
+  let d=first;
+  for(let i=0;i<31;i++){
+    const iso=isoFromUTC(d),p=jalaliParts(iso);
+    if(p.month!==month||p.year!==year)break;
+    const isSelected=selected===iso, isToday=iso===todayISO();
+    cells.push('<button type="button" data-jalali-date="'+iso+'" class="'+(isSelected?'selected ':'')+(isToday?'today':'')+'">'+fa(p.day)+'</button>');
+    d=new Date(d.getTime()+86400000);
+  }
+  while(cells.length%7)cells.push('<span></span>');
+  box.innerHTML='<div class="jalali-cal-head"><button type="button" class="g" data-jalali-nav="-1">ماه قبل</button><b>'+jalaliMonthTitle(anchor)+'</b><button type="button" class="g" data-jalali-nav="1">ماه بعد</button></div><div class="jalali-grid">'+jalaliWeekdays.map(x=>'<span>'+x+'</span>').join('')+cells.join('')+'</div><p class="jalali-cal-hint">تاریخ‌ها بر اساس تقویم هجری شمسی هستند.</p>';
+}
+function openJalaliCalendar(which){
+  const box=$(which==='start'?'leaveStartCalendar':'leaveEndCalendar');
+  const other=$(which==='start'?'leaveEndCalendar':'leaveStartCalendar');
+  other.hidden=true;box.hidden=!box.hidden;
+  if(!box.hidden){const val=$(which==='start'?'leaveStart':'leaveEnd').value;calendarMonths[which]=val||todayISO();drawJalaliCalendar(which);}
+}
+$('leaveStartBtn').onclick=()=>openJalaliCalendar('start');
+$('leaveEndBtn').onclick=()=>openJalaliCalendar('end');
+$('leaveStartCalendar').onclick=e=>{
+  const nav=e.target.closest('[data-jalali-nav]');
+  if(nav){calendarMonths.start=monthMove(calendarMonths.start,Number(nav.dataset.jalaliNav));drawJalaliCalendar('start');return;}
+  const day=e.target.closest('[data-jalali-date]');if(!day)return;
+  $('leaveStart').value=day.dataset.jalaliDate;
+  $('leaveStartBtn').textContent=jalaliLabel(day.dataset.jalaliDate);
+  $('leaveStartCalendar').hidden=true;
+  if($('leaveEnd').value && $('leaveEnd').value<$('leaveStart').value){$('leaveEnd').value='';$('leaveEndBtn').textContent='انتخاب تاریخ پایان';}
+  calendarMonths.end=$('leaveStart').value;
+};
+$('leaveEndCalendar').onclick=e=>{
+  const nav=e.target.closest('[data-jalali-nav]');
+  if(nav){calendarMonths.end=monthMove(calendarMonths.end,Number(nav.dataset.jalaliNav));drawJalaliCalendar('end');return;}
+  const day=e.target.closest('[data-jalali-date]');if(!day)return;
+  if($('leaveStart').value && day.dataset.jalaliDate<$('leaveStart').value){$('leaveMsg').textContent='تاریخ پایان نمی‌تواند قبل از شروع مرخصی باشد.';return;}
+  $('leaveEnd').value=day.dataset.jalaliDate;
+  $('leaveEndBtn').textContent=jalaliLabel(day.dataset.jalaliDate);
+  $('leaveEndCalendar').hidden=true;
+  $('leaveMsg').textContent='';
+};
 $('cancelLeave').onclick=()=>{ show('actions'); idle(90); };
 $('doEdit').onclick=async()=>{ try { mstart=monthStart(Date.now()); await loadRec(); } catch(e) { $('actionMsg').textContent='دریافت سوابق ناموفق بود: '+e.message; } };
 $('doStatus').onclick=loadMyRequests;
