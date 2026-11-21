@@ -70,10 +70,38 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     <h2 id="staffTitle"></h2>
     <p class="hint">نوع عملیات را انتخاب کنید</p>
     <div class="row"><button id="doIn">ثبت ورود</button><button id="doOut" class="g">ثبت خروج</button></div>
+    <div class="row"><button id="doLeave" class="g">درخواست ثبت مرخصی</button><button id="doEdit" class="g">ارسال درخواست ویرایش</button></div>
+    <div class="row"><button id="doStatus" class="g">پیگیری درخواست‌ها</button></div>
     <p class="err" id="actionMsg"></p>
+    <div class="tw" style="margin-top:12px;text-align:right;padding:8px">
+      <h3 style="font-size:15px;margin:6px 0">آخرین وضعیت درخواست‌های شما</h3>
+      <div id="actionRequests" class="m">در حال دریافت وضعیت درخواست‌ها...</div>
+    </div>
     <button id="backPin" class="g">بازگشت</button>
   </section>
 
+  <section id="leave" hidden>
+    <h2>درخواست ثبت مرخصی</h2>
+    <form id="leaveForm">
+      <label>نوع مرخصی
+        <select id="leaveType" required style="font:inherit;padding:12px;border:1px solid var(--ln);border-radius:10px;width:100%;margin:8px 0">
+          <option value="annual">استحقاقی</option><option value="sick">استعلاجی</option><option value="unpaid">بدون حقوق</option><option value="other">سایر</option>
+        </select>
+      </label>
+      <label>از تاریخ <input id="leaveStart" type="date" required></label>
+      <label>تا تاریخ <input id="leaveEnd" type="date" required></label>
+      <label>توضیحات و دلیل درخواست<textarea id="leaveReason" required minlength="5" maxlength="500" rows="3"></textarea></label>
+      <p class="err" id="leaveMsg"></p>
+      <div class="row"><button type="submit" id="sendLeave">ارسال درخواست</button><button type="button" id="cancelLeave" class="g">بازگشت</button></div>
+    </form>
+  </section>
+  <section id="myRequests" hidden>
+    <h2>پیگیری درخواست‌های من</h2>
+    <p class="m">وضعیت و توضیحات مدیر درباره درخواست‌های مرخصی و ویرایش اینجا نمایش داده می‌شود.</p>
+    <div class="tw"><table id="myRequestsTable"></table></div>
+    <p class="err" id="myRequestsMsg"></p>
+    <div class="row"><button id="refreshMyRequests" class="g">به‌روزرسانی</button><button id="backActions" class="g">بازگشت</button></div>
+  </section>
   <section id="res" hidden>
     <div class="big" id="rt"></div>
     <h2 id="rn"></h2>
@@ -101,7 +129,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
 const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
-const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), res: $('res'), rec: $('rec')};
+const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), leave: $('leave'), myRequests: $('myRequests'), res: $('res'), rec: $('rec')};
 let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
 
 
@@ -182,9 +210,9 @@ async function submitPin() {
     if (mode === 'clock') {
       pass = pin;
       staffName = 'کارمند';
-      $('staffTitle').textContent = 'پرسنل: ' + staffName;
+      $('staffTitle').textContent = 'پرسنل';
       $('actionMsg').textContent = '';
-      show('actions'); idle(90);
+      show('actions'); idle(90); loadActionRequests();
     } else {
       pass = pin; mstart = monthStart(Date.now());
       await loadRec();
@@ -223,6 +251,30 @@ async function submitAttendance(action) {
 }
 $('doIn').onclick=()=>submitAttendance('check_in');
 $('doOut').onclick=()=>submitAttendance('check_out');
+$('doLeave').onclick=()=>{ $('leaveMsg').textContent=''; $('leaveForm').reset(); show('leave'); idle(180); };
+$('cancelLeave').onclick=()=>{ show('actions'); idle(90); };
+$('doEdit').onclick=async()=>{ try { mstart=monthStart(Date.now()); await loadRec(); } catch(e) { $('actionMsg').textContent='دریافت سوابق ناموفق بود: '+e.message; } };
+$('doStatus').onclick=loadMyRequests;
+$('backActions').onclick=()=>{ show('actions'); idle(90); };
+$('refreshMyRequests').onclick=loadMyRequests;
+$('leaveForm').onsubmit=async e=>{
+  e.preventDefault();
+  const start=$('leaveStart').value, end=$('leaveEnd').value, reason=$('leaveReason').value.trim();
+  if(!start||!end||end<start){$('leaveMsg').textContent='بازه تاریخ مرخصی معتبر نیست.';return;}
+  if(reason.length<5){$('leaveMsg').textContent='دلیل درخواست باید حداقل ۵ حرف باشد.';return;}
+  $('sendLeave').disabled=true; $('leaveMsg').textContent='در حال ارسال درخواست...';
+  try{
+    const result=await rpc('employee_submit_leave_request_pin',{p_pin:pass,p_leave_type:$('leaveType').value,p_start_date:start,p_end_date:end,p_reason:reason});
+    if(!result.ok){
+      const msgs={invalid_pin:'کد پرسنلی تأیید نشد.',duplicate_pin:'کد پرسنلی تکراری است؛ با مدیر تماس بگیرید.',locked:'دسترسی موقتاً قفل شده است.',invalid_leave_dates:'تاریخ‌های انتخاب‌شده معتبر نیستند.',reason_required:'دلیل درخواست را کامل کنید.',reason_too_long:'توضیحات بیش از حد مجاز است.',leave_overlap:'در این بازه درخواست مرخصی در انتظار یا تأییدشده دارید.',daily_request_limit_reached:'سقف درخواست روزانه شما تکمیل شده است.'};
+      $('leaveMsg').textContent=msgs[result.error]||'ثبت درخواست انجام نشد: '+result.error; return;
+    }
+    $('leaveMsg').textContent='درخواست مرخصی ثبت شد و برای بررسی به مدیر ارسال شد.';
+    $('leaveForm').reset();
+    setTimeout(loadMyRequests,700);
+  }catch(err){$('leaveMsg').textContent='ارسال درخواست ناموفق بود: '+err.message;}
+  finally{$('sendLeave').disabled=false;}
+};
 $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') submitPin(); });
 
 function fail(r) {
@@ -256,6 +308,38 @@ function done(r) {
 }
 
 // ---------- سوابق شخصی (فقط خواندنی) ----------
+async function loadActionRequests(){
+  $('actionRequests').textContent='در حال دریافت...';
+  try{
+    const r=await rpc('kiosk_my_requests_pin',{p_pin:pass});
+    if(!r.ok){$('actionRequests').textContent='وضعیت درخواست‌ها دریافت نشد.';return;}
+    const types={annual:'استحقاقی',sick:'استعلاجی',unpaid:'بدون حقوق',other:'سایر'};
+    const status={pending:'در انتظار بررسی',approved:'تأیید شده',rejected:'رد شده'};
+    const rows=r.requests||[];
+    $('actionRequests').innerHTML=rows.length?rows.slice(0,4).map(x=>{
+      const detail=x.request_type==='leave'?(types[x.leave_type]||x.leave_type)+' | '+x.start_date+' تا '+x.end_date:'درخواست اصلاح سوابق حضور و غیاب';
+      return '<div style="border-top:1px solid var(--ln);padding:7px 0"><b>'+htmlEsc(x.request_label)+' — '+status[x.status]+'</b><br>'+htmlEsc(detail)+(x.review_reason?'<br><small>پاسخ مدیر: '+htmlEsc(x.review_reason)+'</small>':'')+'</div>';
+    }).join(''):'هنوز درخواستی ثبت نکرده‌اید.';
+  }catch(e){$('actionRequests').textContent='دریافت وضعیت درخواست‌ها ممکن نشد.';}
+}
+async function loadMyRequests(){
+  show('myRequests'); idle(120); $('myRequestsMsg').textContent='در حال دریافت درخواست‌ها...';
+  try{
+    const r=await rpc('kiosk_my_requests_pin',{p_pin:pass});
+    if(!r.ok){$('myRequestsMsg').textContent=r.error==='locked'?'دسترسی موقتاً قفل شده است.':'کد پرسنلی تأیید نشد.';return;}
+    const types={annual:'استحقاقی',sick:'استعلاجی',unpaid:'بدون حقوق',other:'سایر'};
+    const status={pending:'در انتظار بررسی',approved:'تأیید شده',rejected:'رد شده'};
+    const rows=r.requests||[];
+    $('myRequestsTable').innerHTML='<tr><th>نوع درخواست</th><th>جزئیات</th><th>وضعیت و پاسخ مدیر</th></tr>'+
+      (rows.length?rows.map(x=>{
+        const detail=x.request_type==='leave'?
+          (types[x.leave_type]||x.leave_type)+' | '+x.start_date+' تا '+x.end_date:
+          'ورود: '+(x.requested_check_in?new Date(x.requested_check_in).toLocaleString('fa-IR',{timeZone:TZ}):'—')+' | خروج: '+(x.requested_check_out?new Date(x.requested_check_out).toLocaleString('fa-IR',{timeZone:TZ}):'—');
+        return '<tr><td>'+htmlEsc(x.request_label)+'</td><td>'+htmlEsc(detail)+'<br><small class="m">دلیل شما: '+htmlEsc(x.request_reason)+'</small></td><td><b>'+status[x.status]+'</b>'+(x.review_reason?'<br><small class="m">پاسخ مدیر: '+htmlEsc(x.review_reason)+'</small>':'')+'</td></tr>';
+      }).join(''):'<tr><td colspan="3">درخواستی ثبت نشده است.</td></tr>');
+    $('myRequestsMsg').textContent='آخرین درخواست‌ها؛ حداکثر ۵۰ مورد نمایش داده می‌شود.';
+  }catch(err){$('myRequestsMsg').textContent='دریافت درخواست‌ها ناموفق بود: '+err.message;}
+}
 async function loadRec() {
   const next = nextMonth(mstart);
   const r = await rpc('kiosk_my_records_pin', {

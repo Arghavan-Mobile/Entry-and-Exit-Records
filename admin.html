@@ -204,6 +204,10 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
       <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
       <p class="s" id="requestMsg"></p>
       <div class="tw"><table><thead><tr><th>کارمند و دلیل</th><th>زمان فعلی</th><th>زمان درخواستی</th><th>عملیات</th></tr></thead><tbody id="requestRows"></tbody></table></div>
+      <h2>درخواست‌های مرخصی در انتظار بررسی</h2>
+      <button type="button" class="g" id="refreshLeaveRequests">به‌روزرسانی درخواست‌های مرخصی</button>
+      <p class="s" id="leaveRequestMsg"></p>
+      <div class="tw"><table><thead><tr><th>کارمند و دلیل</th><th>نوع مرخصی</th><th>بازه درخواستی</th><th>عملیات</th></tr></thead><tbody id="leaveRequestRows"></tbody></table></div>
     </div>
     <div id="p6" hidden>
       <h2>تنظیمات سامانه</h2>
@@ -380,7 +384,7 @@ async function boot() {
 // ---------- تب‌ها ----------
 [1, 2, 3, 4, 5, 6].forEach(n => $('t' + n).onclick = () => [1, 2, 3, 4, 5, 6].forEach(k => {
   $('p' + k).hidden = k !== n; $('t' + k).className = k === n ? '' : 'g';
-  if (k === n && n === 5) { loadReport(); loadCorrectionRequests(); }
+  if (k === n && n === 5) { loadReport(); loadCorrectionRequests(); loadLeaveRequests(); }
 }));
 
 // ---------- دعوت مدیران عملیاتی ----------
@@ -633,6 +637,38 @@ async function loadCorrectionRequests() {
   say('requestMsg', 'تعداد درخواست‌های در انتظار: ' + data.length, 1);
 }
 $('refreshRequests').onclick = loadCorrectionRequests;
+const leaveTypeLabel = t => ({annual:'استحقاقی',sick:'استعلاجی',unpaid:'بدون حقوق',other:'سایر'})[t] || t;
+async function loadLeaveRequests() {
+  say('leaveRequestMsg', 'در حال دریافت درخواست‌های مرخصی...', 1);
+  const {data, error} = await sb.rpc('manager_list_leave_requests');
+  if (error) { say('leaveRequestMsg', 'دریافت درخواست‌ها ناموفق بود: ' + error.message); return; }
+  $('leaveRequestRows').innerHTML = data.length ? data.map(r =>
+    '<tr><td>' + esc(r.employee_name) + '<br><small class="m">' + esc(r.request_reason) + '</small></td>' +
+    '<td>' + leaveTypeLabel(r.leave_type) + '</td>' +
+    '<td>' + esc(r.start_date) + ' تا ' + esc(r.end_date) + '<br><small class="m">ثبت: ' + fmtDate(r.created_at) + '</small></td>' +
+    '<td class="a" data-leave-request="' + r.request_id + '">' +
+    '<button class="g" data-leave-review="approved">تأیید</button>' +
+    '<button class="g" data-leave-review="rejected">رد</button></td></tr>'
+  ).join('') : '<tr><td colspan="4" class="m">درخواست مرخصی در انتظاری وجود ندارد.</td></tr>';
+  say('leaveRequestMsg', 'تعداد درخواست‌های مرخصی در انتظار: ' + data.length, 1);
+}
+$('refreshLeaveRequests').onclick = loadLeaveRequests;
+$('leaveRequestRows').onclick = async e => {
+  const b = e.target.closest('button[data-leave-review]'); if (!b) return;
+  const requestId = b.parentNode.dataset.leaveRequest;
+  const decision = b.dataset.leaveReview;
+  const reason = prompt(decision === 'approved'
+    ? 'توضیح تأیید درخواست مرخصی را بنویس (حداقل ۳ حرف):'
+    : 'دلیل رد درخواست مرخصی را بنویس (حداقل ۳ حرف):');
+  if (!reason || reason.trim().length < 3) return;
+  b.disabled = true;
+  const {error} = await sb.rpc('manager_review_leave_request', {
+    p_request_id: requestId, p_decision: decision, p_review_reason: reason.trim()
+  });
+  if (error) { say('leaveRequestMsg', 'ثبت تصمیم ناموفق بود: ' + error.message); b.disabled = false; return; }
+  say('leaveRequestMsg', decision === 'approved' ? 'درخواست مرخصی تأیید شد.' : 'درخواست مرخصی رد شد و دلیل آن برای پرسنل قابل مشاهده است.', 1);
+  loadLeaveRequests();
+};
 $('requestRows').onclick = async e => {
   const b = e.target.closest('button[data-review]'); if (!b) return;
   const requestId = b.parentNode.dataset.request;
