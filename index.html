@@ -123,6 +123,13 @@ input,select,textarea{max-width:100%;border-radius:12px}
     <div class="row"><button id="ok">تأیید</button><button id="cancel" class="g">انصراف</button></div>
   </section>
 
+  <section id="devicePending" hidden>
+    <h2>درخواست تأیید گوشی</h2>
+    <p class="hint">درخواست اتصال این گوشی ثبت شد. پس از تأیید مالک یا مدیر، دوباره کد پرسنلی خود را وارد کنید.</p>
+    <p class="m">تا زمان تأیید، هیچ عملیات پرسنلی از این گوشی قابل انجام نیست.</p>
+    <div class="row"><button id="pendingBack" class="g">بازگشت به صفحه نخست</button></div>
+  </section>
+
   <section id="actions" hidden>
     <h2 id="staffTitle">پنل پرسنل</h2>
     <p class="hint">از این بخش می‌توانید عملیات حضور و درخواست‌های پرسنلی خود را مدیریت کنید.</p>
@@ -216,7 +223,7 @@ input,select,textarea{max-width:100%;border-radius:12px}
 const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
-const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), leave: $('leave'), myRequests: $('myRequests'), res: $('res'), rec: $('rec')};
+const V = {home: $('home'), pin: $('pinv'), pending: $('devicePending'), actions: $('actions'), leave: $('leave'), myRequests: $('myRequests'), res: $('res'), rec: $('rec')};
 let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '', correctionTarget = null;
 
 
@@ -252,22 +259,68 @@ const pDay = t => +new Intl.DateTimeFormat('en-US-u-ca-persian', {day: 'numeric'
 const monthStart = t => { t = midnight(t); while (pDay(t) !== 1) t -= D; return t; };
 const nextMonth = t => { t += 27 * D; while (pDay(t) !== 1) t += D; return t; };
 
-async function rpc(fn, args) {
-  const r = await fetch(C.SUPABASE_URL + '/rest/v1/rpc/' + fn, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', apikey: C.SUPABASE_KEY},
-    body: JSON.stringify(args)
+const DEVICE_DB = 'arghavan-device-v1';
+function openDeviceDb() {
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DEVICE_DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('keys'))req.result.createObjectStore('keys');};
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
   });
-  const raw = await r.text();
-  let data = null;
-  try { data = raw ? JSON.parse(raw) : null; } catch (_) {}
-  if (!r.ok) {
-    const err = new Error((data && (data.message || data.details || data.hint)) || ('HTTP ' + r.status));
-    err.status = r.status; err.code = data && data.code; err.details = data && data.details;
-    throw err;
-  }
+}
+async function deviceStore(mode,key,value) {
+  const db=await openDeviceDb();
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction('keys',mode), store=tx.objectStore('keys');
+    const req=mode==='readonly'?store.get(key):store.put(value,key);
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+    tx.oncomplete=()=>db.close(); tx.onerror=()=>reject(tx.error);
+  });
+}
+async function getLocalDevice(){return await deviceStore('readonly','device');}
+async function createDeviceKey(){
+  const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+  const publicJwk=await crypto.subtle.exportKey('jwk',pair.publicKey);
+  const privateJwk=await crypto.subtle.exportKey('jwk',pair.privateKey);
+  const privateKey=await crypto.subtle.importKey('jwk',privateJwk,{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
+  for(const k of Object.keys(privateJwk)) delete privateJwk[k];
+  return {publicJwk,privateKey};
+}
+async function gateway(payload){
+  const response=await fetch(C.SUPABASE_URL+'/functions/v1/device-gateway',{
+    method:'POST',headers:{'Content-Type':'application/json',apikey:C.SUPABASE_KEY},
+    body:JSON.stringify(payload)
+  });
+  const data=await response.json().catch(()=>({error:'پاسخ نامعتبر از سرور'}));
+  if(!response.ok){const e=new Error(data.error||'درخواست دستگاه ناموفق بود');e.code=data.error||'gateway_error';throw e;}
   return data;
 }
+async function ensureDevice(pin){
+  let local=await getLocalDevice();
+  if(!local){
+    const generated=await createDeviceKey();
+    const enrolled=await gateway({action:'enroll',pin,public_jwk:generated.publicJwk,device_label:(navigator.userAgent||'گوشی پرسنل').slice(0,80)});
+    local={device_id:enrolled.device_id,private_key:generated.privateKey};
+    await deviceStore('readwrite','device',local);
+    if(enrolled.status==='pending') return {pending:true};
+  }
+  const status=await gateway({action:'status',pin,device_id:local.device_id});
+  if(status.status==='pending') return {pending:true};
+  if(status.status!=='active') throw new Error('دستگاه شما فعال نیست؛ از مدیر بخواهید مجوز اتصال مجدد صادر کند.');
+  return {pending:false,device:local};
+}
+async function deviceExecute(fn,args){
+  const local=await getLocalDevice();
+  if(!local) throw new Error('این گوشی هنوز به کد پرسنلی متصل نشده است.');
+  const pin=args.p_pin; const clean={...args}; delete clean.p_pin;
+  const challenge=await gateway({action:'challenge',pin,device_id:local.device_id});
+  const timestamp=Date.now();
+  const signed={v:1,device_id:local.device_id,nonce:challenge.nonce,operation:fn,args:clean,timestamp};
+  const bytes=await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},local.private_key,new TextEncoder().encode(JSON.stringify(signed)));
+  const signature=btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  const result=await gateway({action:'execute',pin,device_id:local.device_id,nonce:challenge.nonce,operation:fn,args:clean,timestamp,signature});
+  return result.result;
+}
+async function rpc(fn,args){return await deviceExecute(fn,args);}
 
 // ---------- صفحه‌ها ----------
 function idle(s) { clearTimeout(tmr); if (s) tmr = setTimeout(() => home(), s * 1000); }
@@ -301,23 +354,19 @@ $('cancel').onclick = () => home();
 
 // ---------- ارسال پین ----------
 async function submitPin() {
-  const pin = fa2en($('pin').value.trim());
-  if (!/^\d{4,6}$/.test(pin)) { $('perr').textContent = 'کد پرسنلی باید ۴ تا ۶ رقم باشد.'; return; }
-  $('ok').disabled = true; idle(30);
-  try {
-    pass = pin;
-    staffName = 'کارمند';
-    $('staffTitle').textContent = 'پنل پرسنل';
-    $('actionMsg').textContent = '';
-    show('actions'); idle(90); loadActionRequests();
-  } catch (e) {
-    $('perr').textContent = e && e.code === 1 ? 'اجازه دسترسی به موقعیت مکانی داده نشد.' :
-      e && e.code === 2 ? 'موقعیت GPS در دسترس نیست؛ دوباره تلاش کنید.' :
-      e && e.code === 3 ? 'دریافت موقعیت بیش از حد طول کشید؛ دوباره تلاش کنید.' :
-      'ثبت انجام نشد. اتصال اینترنت و GPS را بررسی کنید.';
-  }
-  $('ok').disabled = false;
+  const pin=fa2en($('pin').value.trim());
+  if(!/^\d{4,6}$/.test(pin)){$('perr').textContent='کد پرسنلی باید ۴ تا ۶ رقم باشد.';return;}
+  $('ok').disabled=true;idle(30);
+  try{
+    const state=await ensureDevice(pin);
+    if(state.pending){pass='';show('pending');idle(0);return;}
+    pass=pin;staffName='کارمند';$('staffTitle').textContent='پنل پرسنل';$('actionMsg').textContent='';
+    show('actions');idle(90);loadActionRequests();
+  }catch(e){
+    $('perr').textContent=e.message||'اتصال امن دستگاه ناموفق بود. اینترنت را بررسی و دوباره تلاش کنید.';
+  }finally{$('ok').disabled=false;}
 }
+$('pendingBack').onclick=()=>home();
 $('ok').onclick = submitPin;
 $('backPin').onclick = () => { show('pin'); $('perr').textContent=''; };
 async function submitAttendance(action) {
