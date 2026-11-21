@@ -305,6 +305,10 @@ async function ensureDevice(pin){
   }
   const status=await gateway({action:'status',pin,device_id:local.device_id});
   if(status.status==='pending') return {pending:true};
+  if(status.status!=='active' && status.enrollment_authorized){
+    await deviceStore('readwrite','device',null);
+    return await ensureDevice(pin);
+  }
   if(status.status!=='active') throw new Error('دستگاه شما فعال نیست؛ از مدیر بخواهید مجوز اتصال مجدد صادر کند.');
   return {pending:false,device:local};
 }
