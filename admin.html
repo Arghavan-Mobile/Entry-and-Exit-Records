@@ -582,6 +582,7 @@ $('tb').onclick = async e => {
 
 // ---------- گزارش و مرکز بررسی حضور ----------
 let reportCache = [];
+let reportLoaded = false;
 const reportCalendarMonths = {from: reportTodayISO(), to: reportTodayISO()};
 function reportTodayISO() {
   const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -677,6 +678,7 @@ function fillReportEmployees() {
     emps.map(e => '<option value="' + e.id + '">' + esc(e.full_name) + '</option>').join('');
 }
 async function loadReport() {
+  reportLoaded = false;
   say('reportMsg', 'در حال دریافت سوابق...', 1);
   try {
     const [records] = await Promise.all([all('attendance_records', '*')]);
@@ -704,6 +706,7 @@ async function loadReport() {
     }).join('') : '<tr><td colspan="7" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
     say('reportMsg', 'تعداد رکوردهای نمایش‌داده‌شده: ' + filtered.length, 1);
     reportCache = filtered;
+    reportLoaded = true;
   } catch (err) {
     say('reportMsg', 'گزارش بارگذاری نشد: ' + (err.message || err));
   }
@@ -808,8 +811,10 @@ $('reportRows').onclick = async e => {
   if (error) { say('reportMsg', 'اصلاح ناموفق بود: ' + error.message); b.disabled = false; return; }
   say('reportMsg', 'رکورد اصلاح شد و در ممیزی ثبت شد.', 1); loadReport();
 };
-$('exportReportExcel').onclick = () => {
-  if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
+$('exportReportExcel').onclick = async () => {
+  if (!reportLoaded) await loadReport();
+  if (!reportLoaded) return;
+  if (!reportCache.length) { say('reportMsg', 'برای فیلترهای انتخاب‌شده رکوردی وجود ندارد.'); return; }
   const names = new Map(emps.map(e => [e.id, e.full_name]));
   const rows = [
     ['نام پرسنل','زمان ورود','زمان خروج','مدت حضور','وضعیت','دستگاه ثبت ورود','دستگاه ثبت خروج'],
@@ -854,8 +859,10 @@ $('exportReportExcel').onclick = () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   say('reportMsg', 'فایل اکسل گزارش آماده و دانلود شد.', 1);
 };
-$('exportReport').onclick = () => {
-  if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
+$('exportReport').onclick = async () => {
+  if (!reportLoaded) await loadReport();
+  if (!reportLoaded) return;
+  if (!reportCache.length) { say('reportMsg', 'برای فیلترهای انتخاب‌شده رکوردی وجود ندارد.'); return; }
   const names = new Map(emps.map(e => [e.id, e.full_name]));
   const rows = [['employee','check_in','check_out','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => [
     names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited,
