@@ -212,6 +212,13 @@ th{background:#f4f2fc}
       </section>
       <div class="row"><h2 style="flex:1">لیست پرسنل</h2></div>
       <div class="tw"><table><tbody id="tb"></tbody></table></div>
+      <section class="onboard-panel" style="margin-top:18px">
+        <h2>مدیریت گوشی‌های پرسنل</h2>
+        <p class="m">اتصال اولیه گوشی فقط پس از تأیید شما فعال می‌شود. برای تعویض گوشی، مجوز دستگاه قبلی لغو و امکان ثبت گوشی جدید صادر می‌شود.</p>
+        <button type="button" class="g" id="refreshDevices">به‌روزرسانی درخواست‌های دستگاه</button>
+        <p class="s" id="deviceMsg" role="status" aria-live="polite"></p>
+        <div class="tw"><table><thead><tr><th>پرسنل</th><th>دستگاه</th><th>وضعیت</th><th>زمان</th><th>عملیات</th></tr></thead><tbody id="deviceRows"></tbody></table></div>
+      </section>
     </div>
 
     <div id="p2" hidden>
@@ -606,9 +613,32 @@ async function load() {
   emps = data;
   $('tb').innerHTML = data.map(e => '<tr class="' + (e.active ? '' : 'off') + '"><td>' + esc(e.full_name) +
     (e.locked_until && new Date(e.locked_until) > new Date() ? ' <span class="er">(قفل موقت)</span>' : '') +
-    '</td><td class="a" data-id="' + e.id + '"><button class="g" data-a="pin">تغییر کد</button><button class="g" data-a="delete">حذف</button><button class="g" data-a="tgl">' + (e.active ? 'غیرفعال' : 'فعال') + '</button></td></tr>').join('') ||
+    '</td><td class="a" data-id="' + e.id + '"><button class="g" data-a="pin">تغییر کد</button><button class="g" data-a="device">مجوز گوشی جدید</button><button class="g" data-a="delete">حذف</button><button class="g" data-a="tgl">' + (e.active ? 'غیرفعال' : 'فعال') + '</button></td></tr>').join('') ||
     '<tr><td class="m">هنوز کسی اضافه نشده.</td></tr>';
+  await loadDevices();
 }
+async function loadDevices(){
+  if(!$('deviceRows'))return;
+  say('deviceMsg','در حال دریافت وضعیت دستگاه‌ها...',true);
+  const {data,error}=await sb.rpc('manager_list_employee_devices');
+  if(error){say('deviceMsg','دریافت فهرست دستگاه‌ها ناموفق بود: '+error.message);return;}
+  const rows=data||[];
+  $('deviceRows').innerHTML=rows.map(d=>{
+    const status=d.status==='pending'?'در انتظار تأیید':d.status==='active'?'فعال':d.status==='revoked'?'لغوشده':'ردشده';
+    const actions=d.status==='pending'?'<button class="g" data-device-action="approved" data-device-key="'+d.device_id+'">تأیید</button><button class="g" data-device-action="rejected" data-device-key="'+d.device_id+'">رد</button>':'—';
+    return '<tr><td>'+esc(d.employee_name)+'</td><td>'+esc(d.device_label||'گوشی پرسنل')+'</td><td>'+status+'</td><td>'+new Date(d.created_at).toLocaleString('fa-IR')+'</td><td class="a">'+actions+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" class="m">درخواست یا دستگاه فعالی وجود ندارد.</td></tr>';
+  say('deviceMsg','فهرست دستگاه‌ها به‌روز شد.',true);
+}
+$('refreshDevices').onclick=loadDevices;
+$('deviceRows').onclick=async e=>{
+  const b=e.target.closest('button[data-device-action]');if(!b)return;
+  b.disabled=true;
+  const {error}=await sb.rpc('manager_review_employee_device',{p_device:b.dataset.deviceKey,p_decision:b.dataset.deviceAction});
+  if(error)say('deviceMsg','ثبت تصمیم ناموفق بود: '+error.message);
+  else say('deviceMsg',b.dataset.deviceAction==='approved'?'گوشی پرسنل تأیید و فعال شد.':'درخواست اتصال گوشی رد شد.',true);
+  await loadDevices();
+};
 $('fAdd').onsubmit = async e => {
   e.preventDefault();
   const {error} = await sb.rpc('admin_create_employee', {p_name: $('an').value, p_pin: fa2en($('ap').value.trim())});
@@ -622,6 +652,12 @@ $('tb').onclick = async e => {
   if (a === 'pin') {
     const p = prompt('کد جدید برای ' + x.full_name + ' (۴ تا ۶ رقم):'); if (!p) return;
     r = await sb.rpc('admin_reset_pin', {p_employee: x.id, p_pin: fa2en(p.trim())});
+  }
+  if (a === 'device') {
+    if(!confirm('گوشی قبلی '+x.full_name+' لغو شود و مجوز ثبت گوشی جدید صادر شود؟'))return;
+    r=await sb.rpc('manager_authorize_employee_device',{p_employee:x.id});
+    say('emsg',r.error?'صدور مجوز ناموفق بود: '+r.error.message:'دسترسی گوشی قبلی لغو شد؛ پرسنل می‌تواند گوشی جدید را ثبت کند.',!r.error);
+    await load(); return;
   }
   if (a === 'tgl') {
     if (!confirm((x.active ? 'غیرفعال' : 'فعال') + ' شود: ' + x.full_name + '؟')) return;
