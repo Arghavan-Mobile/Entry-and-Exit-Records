@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
     const device = await getDevice(deviceId, employee.employee_id);
     if (!device) return reply({ error: "device_not_found" }, 404);
 
-    if (action === "status") return reply({ ok: true, status: device.status, employee_name: employee.employee_name });
+    if (action === "status") return reply({ ok: true, status: device.status, employee_name: employee.employee_name, enrollment_authorized: employee.enrollment_authorized });
 
     if (action === "challenge") {
       if (device.status !== "active") return reply({ error: device.status === "pending" ? "device_pending_approval" : "device_not_active" }, 403);
