@@ -92,6 +92,58 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
 .jalali-cal-hint{font-size:11px;color:var(--m);margin:8px 0 0}
 .jalali-field input[type=date]{display:none}
 
+
+/* Responsive admin workspace visual refresh */
+body{background:radial-gradient(ellipse at 8% 8%,#dedbf5 0,transparent 34%),radial-gradient(ellipse at 92% 92%,#e3e0f4 0,transparent 32%),var(--bg)}
+main{max-width:1440px;min-height:calc(100vh - 32px);padding:30px 34px 40px;box-shadow:0 22px 65px rgba(37,32,112,.12);border:1px solid rgba(255,255,255,.85);border-top:8px solid var(--b)}
+.top{padding-bottom:16px;border-bottom:1px solid var(--ln);margin-bottom:22px}
+.top img{width:52px;filter:drop-shadow(0 5px 10px rgba(41,36,134,.12))}
+.top h1{font-size:22px}
+.home-link{transition:background .16s,transform .16s}
+button{min-height:44px;font-weight:700;box-shadow:0 2px 8px rgba(41,36,134,.06);transition:transform .16s,box-shadow .16s,background .16s}
+button:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(41,36,134,.12)}
+button.g{background:linear-gradient(180deg,#fff,#f8f7fd)}
+input,select,textarea{border-radius:11px}
+.tabs{gap:9px}
+.tabs button{min-height:48px}
+#v-app>div:not(.app-toolbar){min-width:0}
+#p1,#p2,#p3,#p4,#p5,#p6{padding:8px 0 18px}
+#p1>section,#p2>section,#p3>section,#p4>section,#p5>section,#p6>section{border-radius:16px}
+.tw{box-shadow:0 4px 18px rgba(37,32,112,.05)}
+table{background:#fff}
+th{background:#f4f2fc}
+@media(min-width:1000px){
+ main{padding:34px 42px 48px}
+ .app-toolbar{align-items:center;padding:12px;background:linear-gradient(100deg,#faf9ff,#f0eefb);border:1px solid var(--ln);border-radius:18px;margin-bottom:22px}
+ .app-toolbar .tabs{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+ .app-toolbar #out2{min-width:120px}
+ .tabs button{min-height:50px;padding:10px 12px}
+ .onboard-panel{padding:22px 24px}
+ .onboard-panel form{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+ .onboard-panel form .field-label{grid-column:1/-1}
+ .onboard-panel form input,.onboard-panel form button{min-width:0}
+ .tw{max-height:62vh}
+}
+@media(min-width:641px) and (max-width:999px){
+ main{padding:24px 22px}
+ .app-toolbar .tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:640px){
+ body{padding:8px;background:linear-gradient(160deg,#f3f1fb,#e9e6f6)}
+ main{min-height:calc(100dvh - 16px);padding:16px 13px 26px;border-radius:19px;box-shadow:0 12px 34px rgba(37,32,112,.11)}
+ .top{padding-bottom:12px}
+ .top img{width:40px}
+ .top h1{font-size:18px}
+ .home-link{min-height:40px;padding:8px 11px;font-size:13px}
+ .app-toolbar{background:#faf9ff;border:1px solid var(--ln);border-radius:14px;padding:10px}
+ .app-toolbar .tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tabs button{min-height:46px}
+ .app-toolbar #out2{width:100%}
+ .onboard-panel{box-shadow:0 5px 18px rgba(41,36,134,.05)}
+ .tw{border-radius:12px}
+}
+@media(prefers-reduced-motion:reduce){button{transition:none}button:not(:disabled):hover{transform:none}}
+
 </style>
 </head>
 <body>
