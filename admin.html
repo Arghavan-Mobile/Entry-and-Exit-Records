@@ -823,11 +823,15 @@ const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
 // ---------- محاسبهٔ کارکرد بر اساس دو نوبت کاری روزانه ----------
 let workSchedule = {shift1_start:'10:30',shift1_end:'14:00',shift2_start:'16:00',shift2_end:'22:00'};
 let workScheduleVersions = [];
+let workHolidayDates = new Set();
 async function loadWorkSchedule() {
-  const {data,error}=await sb.from('work_schedule_versions')
-    .select('id,employee_id,effective_from,shift1_start,shift1_end,shift2_start,shift2_end,workdays')
-    .order('effective_from',{ascending:true});
+  const [{data,error},{data:holidayData,error:holidayError}]=await Promise.all([
+    sb.from('work_schedule_versions').select('id,employee_id,effective_from,shift1_start,shift1_end,shift2_start,shift2_end,workdays').order('effective_from',{ascending:true}),
+    sb.from('work_holidays').select('holiday_date')
+  ]);
   if(error) throw error;
+  if(holidayError) throw holidayError;
+  workHolidayDates=new Set((holidayData||[]).map(x=>x.holiday_date));
   workScheduleVersions=data||[];
   if(workScheduleVersions.length){
     const global=workScheduleVersions.filter(x=>!x.employee_id).sort((a,b)=>a.effective_from.localeCompare(b.effective_from));
@@ -844,7 +848,8 @@ function scheduleFor(employeeId,day) {
     shift1_end:String(s.shift1_end||'14:00:00').slice(0,5),
     shift2_start:String(s.shift2_start||'16:00:00').slice(0,5),
     shift2_end:String(s.shift2_end||'22:00:00').slice(0,5),
-    workdays:s.workdays||[0,1,2,3,4,5,6],version_id:s.id||null};
+    workdays:s.workdays||[0,1,2,3,4,5,6],version_id:s.id||null,
+    isWorkday:(s.workdays||[0,1,2,3,4,5,6]).includes(isoWeekday(day))&&!workHolidayDates.has(day)};
 }
 const scheduleMinutes = t => {const [h,m]=String(t).split(':').map(Number);return h*60+m;};
 const fmtMinutes = n => {
@@ -865,15 +870,15 @@ function attendanceWorkMetrics(record, schedule=null) {
   if(epochs.length>1 && Math.abs(start.getTime()-epochs[1])<Math.abs(start.getTime()-epochs[0]))index=1;
   const expectedStart=epochs[index], expectedEnd=base.getTime()+ends[index]*60000;
   const inMs=start.getTime(), outMs=end?end.getTime():null;
-  const late=Math.max(0,Math.round((inMs-expectedStart)/60000));
-  const early=outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
   const crossesBreak=outMs!==null && index===0 && outMs>=epochs[1];
   const overlap=outMs===null?0:Math.max(0,Math.round((Math.min(outMs,expectedEnd)-Math.max(inMs,expectedStart))/60000));
   const beforeStart=Math.max(0,Math.round((expectedStart-inMs)/60000));
   const afterEnd=outMs===null?0:(!crossesBreak?Math.max(0,Math.round((outMs-expectedEnd)/60000)):0);
-  const overtime=beforeStart+afterEnd;
-  const scheduled=ends[index]-starts[index];
-  const worked=overlap+overtime;
+  const scheduled=schedule.isWorkday===false?0:ends[index]-starts[index];
+  const late=schedule.isWorkday===false?0:Math.max(0,Math.round((inMs-expectedStart)/60000));
+  const early=schedule.isWorkday===false||outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
+  const overtime=schedule.isWorkday===false?(outMs===null?0:Math.max(0,Math.round((outMs-inMs)/60000))):beforeStart+afterEnd;
+  const worked=schedule.isWorkday===false?overtime:overlap+overtime;
   return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,crossesBreak,
     expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd),scheduleVersionId:schedule.version_id||null};
 }
@@ -991,7 +996,7 @@ async function buildMonthlyAttendance(){
  const {data,error}=await sb.rpc('manager_monthly_attendance_inputs',{p_from:from,p_to:to});
  if(error){say('monthlyMsg','دریافت داده‌های گزارش ناموفق بود: '+error.message);return;}
  const employees=data.employees||[],records=data.records||[],schedules=data.schedules||[],holidays=new Map((data.holidays||[]).map(x=>[x.holiday_date,x.title])),leaves=data.approved_leaves||[];
- workScheduleVersions=schedules;
+ workScheduleVersions=schedules;workHolidayDates=new Set(holidays.keys());
  const groups=new Map();
  for(const e of employees){
   for(let day=from;day<=to;day=isoDayAdd(day,1)){
