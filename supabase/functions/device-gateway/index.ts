@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
       const status = employee.enrollment_authorized ? "active" : "pending";
       const { data: device, error: insertError } = await admin.from("employee_devices")
         .insert({ employee_id: employee.employee_id, public_jwk: jwk, device_label: String(body.device_label || "گوشی پرسنل").slice(0, 80), status,
-          approved_at: status === "active" ? new Date().toISOString() : null })
+          approved_at: status === "active" ? new Date().toISOString() : null, approved_by: status === "active" ? employee.device_enrollment_authorized_by : null })
         .select("id,status").single();
       if (insertError) throw new Error("device_enrollment_failed");
       if (status === "active") {
