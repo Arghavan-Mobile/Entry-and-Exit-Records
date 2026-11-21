@@ -73,6 +73,10 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     <div class="row"><button id="doLeave" class="g">درخواست ثبت مرخصی</button><button id="doEdit" class="g">ارسال درخواست ویرایش</button></div>
     <div class="row"><button id="doStatus" class="g">پیگیری درخواست‌ها</button></div>
     <p class="err" id="actionMsg"></p>
+    <div class="tw" style="margin-top:12px;text-align:right;padding:8px">
+      <h3 style="font-size:15px;margin:6px 0">آخرین وضعیت درخواست‌های شما</h3>
+      <div id="actionRequests" class="m">در حال دریافت وضعیت درخواست‌ها...</div>
+    </div>
     <button id="backPin" class="g">بازگشت</button>
   </section>
 
@@ -208,7 +212,7 @@ async function submitPin() {
       staffName = 'کارمند';
       $('staffTitle').textContent = 'پرسنل';
       $('actionMsg').textContent = '';
-      show('actions'); idle(90);
+      show('actions'); idle(90); loadActionRequests();
     } else {
       pass = pin; mstart = monthStart(Date.now());
       await loadRec();
@@ -304,6 +308,20 @@ function done(r) {
 }
 
 // ---------- سوابق شخصی (فقط خواندنی) ----------
+async function loadActionRequests(){
+  $('actionRequests').textContent='در حال دریافت...';
+  try{
+    const r=await rpc('kiosk_my_requests_pin',{p_pin:pass});
+    if(!r.ok){$('actionRequests').textContent='وضعیت درخواست‌ها دریافت نشد.';return;}
+    const types={annual:'استحقاقی',sick:'استعلاجی',unpaid:'بدون حقوق',other:'سایر'};
+    const status={pending:'در انتظار بررسی',approved:'تأیید شده',rejected:'رد شده'};
+    const rows=r.requests||[];
+    $('actionRequests').innerHTML=rows.length?rows.slice(0,4).map(x=>{
+      const detail=x.request_type==='leave'?(types[x.leave_type]||x.leave_type)+' | '+x.start_date+' تا '+x.end_date:'درخواست اصلاح سوابق حضور و غیاب';
+      return '<div style="border-top:1px solid var(--ln);padding:7px 0"><b>'+htmlEsc(x.request_label)+' — '+status[x.status]+'</b><br>'+htmlEsc(detail)+(x.review_reason?'<br><small>پاسخ مدیر: '+htmlEsc(x.review_reason)+'</small>':'')+'</div>';
+    }).join(''):'هنوز درخواستی ثبت نکرده‌اید.';
+  }catch(e){$('actionRequests').textContent='دریافت وضعیت درخواست‌ها ممکن نشد.';}
+}
 async function loadMyRequests(){
   show('myRequests'); idle(120); $('myRequestsMsg').textContent='در حال دریافت درخواست‌ها...';
   try{
