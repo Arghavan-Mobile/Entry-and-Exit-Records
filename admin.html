@@ -75,6 +75,20 @@ td.a{display:flex;gap:6px;flex-wrap:wrap}td.a button{padding:6px 10px;font-size:
 tr.off td:first-child{color:var(--m);text-decoration:line-through}
 a.l{color:var(--b);cursor:pointer;font-size:14px}
 #cards{display:none}
+.jalali-field{position:relative;min-width:150px;flex:1}
+.jalali-field>label{display:block;font-size:14px;font-weight:700;margin:0 2px 5px}
+.jalali-date-btn{width:100%;text-align:right;background:#fff;color:var(--t);border:1px solid var(--ln)}
+.jalali-calendar{position:absolute;z-index:20;top:100%;right:0;left:0;min-width:270px;border:1px solid var(--ln);border-radius:14px;padding:10px;margin-top:5px;background:#fff;box-shadow:0 8px 24px #24204a22}
+.jalali-cal-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}
+.jalali-cal-head button{padding:7px 10px;min-height:36px}
+.jalali-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.jalali-grid span,.jalali-grid button{min-width:0;padding:8px 2px;text-align:center;font-size:13px}
+.jalali-grid span{color:var(--m);font-weight:bold}
+.jalali-grid button{background:#fff;color:var(--t);border:1px solid transparent;padding:8px 0;min-height:36px}
+.jalali-grid button.selected{background:var(--b);color:#fff}
+.jalali-grid button.today{border-color:var(--b)}
+.jalali-cal-hint{font-size:11px;color:var(--m);margin:8px 0 0}
+.jalali-field input[type=date]{display:none}
 
 </style>
 </head>
@@ -190,8 +204,18 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
     <div id="p5" hidden>
       <h2>گزارش و بررسی حضور و غیاب</h2>
       <div class="row">
-        <label>از تاریخ <input id="reportFrom" type="date"></label>
-        <label>تا تاریخ <input id="reportTo" type="date"></label>
+        <div class="jalali-field">
+          <label for="reportFromBtn">از تاریخ (شمسی)</label>
+          <button type="button" class="g jalali-date-btn" id="reportFromBtn">انتخاب تاریخ شروع</button>
+          <input id="reportFrom" type="date" aria-label="تاریخ شروع میلادی برای پردازش">
+          <div class="jalali-calendar" id="reportFromCalendar" hidden></div>
+        </div>
+        <div class="jalali-field">
+          <label for="reportToBtn">تا تاریخ (شمسی)</label>
+          <button type="button" class="g jalali-date-btn" id="reportToBtn">انتخاب تاریخ پایان</button>
+          <input id="reportTo" type="date" aria-label="تاریخ پایان میلادی برای پردازش">
+          <div class="jalali-calendar" id="reportToCalendar" hidden></div>
+        </div>
         <select id="reportEmployee" style="font:inherit;padding:10px;border:1px solid var(--ln);border-radius:10px">
           <option value="">همه کارکنان</option>
         </select>
@@ -557,6 +581,69 @@ $('tb').onclick = async e => {
 
 // ---------- گزارش و مرکز بررسی حضور ----------
 let reportCache = [];
+const reportCalendarMonths = {from: reportTodayISO(), to: reportTodayISO()};
+function reportTodayISO() {
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tehran',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const p = Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  return p.year+'-'+p.month+'-'+p.day;
+}
+const reportISO = d => d.toISOString().slice(0,10);
+function reportJalaliParts(iso) {
+  const d = new Date(iso+'T12:00:00Z');
+  const parts = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn',{timeZone:'UTC',year:'numeric',month:'numeric',day:'numeric'}).formatToParts(d);
+  const p={}; parts.forEach(x=>{if(x.type!=='literal')p[x.type]=Number(x.value);}); return p;
+}
+function reportJalaliMonthStart(iso) {
+  const d=new Date(iso+'T12:00:00Z');
+  for(let i=0;i<32;i++){const v=reportISO(d);if(reportJalaliParts(v).day===1)return v;d.setUTCDate(d.getUTCDate()-1);}
+  return iso;
+}
+function reportJalaliMonthMove(iso,delta) {
+  const d=new Date(reportJalaliMonthStart(iso)+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+delta*35);
+  return reportJalaliMonthStart(reportISO(d));
+}
+function reportJalaliMonthTitle(iso) {
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',month:'long',year:'numeric'}).format(new Date(iso+'T12:00:00Z'));
+}
+function drawReportCalendar(which) {
+  const input=$('report'+(which==='from'?'From':'To'));
+  const box=$('report'+(which==='from'?'From':'To')+'Calendar');
+  const anchor=reportJalaliMonthStart(reportCalendarMonths[which]), first=new Date(anchor+'T12:00:00Z');
+  const p0=reportJalaliParts(anchor), offset=(first.getUTCDay()+1)%7, cells=[];
+  for(let i=0;i<offset;i++)cells.push('<span></span>');
+  let d=first;
+  for(let i=0;i<31;i++){
+    const iso=reportISO(d),p=reportJalaliParts(iso);
+    if(p.month!==p0.month||p.year!==p0.year)break;
+    const cls=(input.value===iso?'selected ':'')+(iso===reportTodayISO()?'today':'');
+    cells.push('<button type="button" data-report-date="'+iso+'" class="'+cls+'">'+Number(p.day).toLocaleString('fa-IR')+'</button>');
+    d.setUTCDate(d.getUTCDate()+1);
+  }
+  while(cells.length%7)cells.push('<span></span>');
+  box.innerHTML='<div class="jalali-cal-head"><button type="button" class="g" data-report-nav="-1">ماه قبل</button><b>'+reportJalaliMonthTitle(anchor)+'</b><button type="button" class="g" data-report-nav="1">ماه بعد</button></div><div class="jalali-grid">'+['ش','ی','د','س','چ','پ','ج'].map(x=>'<span>'+x+'</span>').join('')+cells.join('')+'</div><p class="jalali-cal-hint">تاریخ‌ها بر اساس تقویم هجری شمسی هستند.</p>';
+}
+function openReportCalendar(which) {
+  const box=$('report'+(which==='from'?'From':'To')+'Calendar');
+  const other=$('report'+(which==='from'?'To':'From')+'Calendar');
+  other.hidden=true;
+  if(box.hidden){reportCalendarMonths[which]=$('report'+(which==='from'?'From':'To')).value||reportTodayISO();drawReportCalendar(which);box.hidden=false;}
+  else box.hidden=true;
+}
+['from','to'].forEach(which=>{
+  const cap=which==='from'?'From':'To';
+  $('report'+cap+'Btn').onclick=()=>openReportCalendar(which);
+  $('report'+cap+'Calendar').onclick=e=>{
+    const nav=e.target.closest('button[data-report-nav]');
+    if(nav){reportCalendarMonths[which]=reportJalaliMonthMove(reportCalendarMonths[which],Number(nav.dataset.reportNav));drawReportCalendar(which);return;}
+    const day=e.target.closest('button[data-report-date]');if(!day)return;
+    const input=$('report'+cap),btn=$('report'+cap+'Btn'),iso=day.dataset.reportDate;
+    input.value=iso;btn.textContent=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',year:'numeric',month:'long',day:'numeric'}).format(new Date(iso+'T12:00:00Z'));
+    $('report'+cap+'Calendar').hidden=true;
+  };
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.jalali-field')){ $('reportFromCalendar').hidden=true; $('reportToCalendar').hidden=true; }
+});
 const reportDateKey = v => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit'
