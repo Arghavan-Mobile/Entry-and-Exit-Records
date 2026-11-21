@@ -288,7 +288,7 @@ th{background:#f4f2fc}
         <button type="button" class="g" id="exportReportExcel">خروجی اکسل</button>
       </div>
       <p class="s" id="reportMsg"></p>
-      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>دستگاه ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>کارکرد خالص</th><th>تأخیر</th><th>تعجیل خروج</th><th>اضافه‌کاری</th><th>وضعیت</th><th>دستگاه ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
       <h2>درخواست‌های اصلاح در انتظار بررسی</h2>
       <button type="button" class="g" id="refreshRequests">به‌روزرسانی درخواست‌ها</button>
       <p class="s" id="requestMsg"></p>
@@ -307,6 +307,17 @@ th{background:#f4f2fc}
         <label>حداکثر طول شیفت باز (ساعت)<input id="setShift" type="number" min="1" max="48" required></label>
         <label>حداکثر تلاش PIN اشتباه<input id="setAttempts" type="number" min="3" max="20" required></label>
         <label>مدت قفل پس از خطا (دقیقه)<input id="setLock" type="number" min="1" max="1440" required></label>
+        <h3 style="margin:12px 0 4px">ساعت کاری روزانه (به وقت تهران)</h3>
+        <p class="m">دو بازه کاری تعریف کن؛ محاسبه تأخیر، تعجیل در خروج، اضافه‌کاری و کارکرد خالص بر اساس همین بازه‌ها انجام می‌شود.</p>
+        <div class="row">
+          <label style="flex:1;min-width:130px">شروع نوبت اول<input id="setShift1Start" type="time" required></label>
+          <label style="flex:1;min-width:130px">پایان نوبت اول<input id="setShift1End" type="time" required></label>
+        </div>
+        <div class="row">
+          <label style="flex:1;min-width:130px">شروع نوبت دوم<input id="setShift2Start" type="time" required></label>
+          <label style="flex:1;min-width:130px">پایان نوبت دوم<input id="setShift2End" type="time" required></label>
+        </div>
+        <p class="m">مقادیر پیش‌فرض: ۱۰:۳۰ تا ۱۴:۰۰ و ۱۶:۰۰ تا ۲۲:۰۰</p>
         <label>دستورالعمل اختیاری برای پرسنل (حداکثر ۲۰۰۰ حرف)<textarea id="setInstruction" maxlength="2000" rows="5" placeholder="در صورت نیاز، قوانین و توضیحات حضور و غیاب را بنویسید؛ خالی گذاشتن یعنی بدون دستورالعمل اضافی."></textarea></label>
         <p class="s" id="settingsMsg"></p>
         <button>ذخیره تنظیمات</button>
@@ -574,7 +585,7 @@ $('inviteRows').onclick = async e => {
 // ---------- تنظیمات ----------
 async function loadSettings() {
   const {data, error} = await sb.from('settings')
-    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes,attendance_instruction')
+    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes,attendance_instruction,shift1_start,shift1_end,shift2_start,shift2_end')
     .eq('id', 1).single();
   if (error) { say('settingsMsg', 'دریافت تنظیمات ناموفق بود: ' + error.message); return; }
   $('setShop').value = data.shop_name || '';
@@ -583,6 +594,10 @@ async function loadSettings() {
   $('setAttempts').value = data.max_pin_attempts;
   $('setLock').value = data.lock_minutes;
   $('setInstruction').value = data.attendance_instruction || '';
+  $('setShift1Start').value = String(data.shift1_start || '10:30:00').slice(0,5);
+  $('setShift1End').value = String(data.shift1_end || '14:00:00').slice(0,5);
+  $('setShift2Start').value = String(data.shift2_start || '16:00:00').slice(0,5);
+  $('setShift2End').value = String(data.shift2_end || '22:00:00').slice(0,5);
 }
 $('fSettings').onsubmit = async e => {
   e.preventDefault();
@@ -599,11 +614,23 @@ $('fSettings').onsubmit = async e => {
       args.p_lock_minutes < 1 || args.p_lock_minutes > 1440) {
     say('settingsMsg', 'یکی از مقادیر خارج از محدوده مجاز است.'); return;
   }
+  const schedule = {
+    p_shift1_start:$('setShift1Start').value, p_shift1_end:$('setShift1End').value,
+    p_shift2_start:$('setShift2Start').value, p_shift2_end:$('setShift2End').value
+  };
+  if (!schedule.p_shift1_start || !schedule.p_shift1_end || !schedule.p_shift2_start || !schedule.p_shift2_end ||
+      schedule.p_shift1_start >= schedule.p_shift1_end || schedule.p_shift1_end >= schedule.p_shift2_start ||
+      schedule.p_shift2_start >= schedule.p_shift2_end) {
+    say('settingsMsg','بازه‌های کاری معتبر نیستند؛ شروع و پایان هر نوبت و فاصله بین دو نوبت را بررسی کن.'); return;
+  }
   const {error} = await sb.rpc('admin_update_settings', args);
   if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
+  const scheduleResult = await sb.rpc('admin_update_work_schedule', schedule);
+  if (scheduleResult.error) { say('settingsMsg', 'تنظیمات عمومی ذخیره شد اما ساعت کاری ذخیره نشد: ' + scheduleResult.error.message); return; }
   const instructionResult = await sb.rpc('admin_update_attendance_instruction', {p_instruction: $('setInstruction').value});
-  if (instructionResult.error) { say('settingsMsg', 'تنظیمات پایه ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
-  say('settingsMsg', 'تنظیمات و دستورالعمل اختیاری ذخیره شدند و در گزارش ممیزی ثبت شدند.', 1);
+  if (instructionResult.error) { say('settingsMsg', 'ساعت کاری ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
+  reportLoaded = false;
+  say('settingsMsg', 'ساعت کاری و سایر تنظیمات ذخیره و در گزارش ممیزی ثبت شدند.', 1);
 };
 
 // ---------- پرسنل ----------
@@ -749,6 +776,70 @@ const reportDateKey = v => {
 const reportFaTime = v => v ? new Date(v).toLocaleString('fa-IR', {
   timeZone: 'Asia/Tehran', dateStyle: 'short', timeStyle: 'short'
 }) : '—';
+// ---------- محاسبهٔ کارکرد بر اساس دو نوبت کاری روزانه ----------
+let workSchedule = {shift1_start:'10:30',shift1_end:'14:00',shift2_start:'16:00',shift2_end:'22:00'};
+async function loadWorkSchedule() {
+  const {data,error}=await sb.from('settings').select('shift1_start,shift1_end,shift2_start,shift2_end').eq('id',1).single();
+  if(error) throw error;
+  workSchedule={
+    shift1_start:String(data.shift1_start||'10:30:00').slice(0,5),
+    shift1_end:String(data.shift1_end||'14:00:00').slice(0,5),
+    shift2_start:String(data.shift2_start||'16:00:00').slice(0,5),
+    shift2_end:String(data.shift2_end||'22:00:00').slice(0,5)
+  };
+  return workSchedule;
+}
+const scheduleMinutes = t => {const [h,m]=String(t).split(':').map(Number);return h*60+m;};
+const fmtMinutes = n => {
+  n=Math.max(0,Math.round(n||0));
+  return Math.floor(n/60)+'ساعت و '+(n%60)+'دقیقه';
+};
+function attendanceWorkMetrics(record, schedule=workSchedule) {
+  if(!record || !record.check_in) return null;
+  const start=new Date(record.check_in), end=record.check_out?new Date(record.check_out):null;
+  if(!Number.isFinite(start.getTime()) || (end && (!Number.isFinite(end.getTime())||end<start)))return null;
+  const dateKey=reportDateKey(record.check_in);
+  const base=new Date(dateKey+'T00:00:00+03:30');
+  const starts=[schedule.shift1_start,schedule.shift2_start].map(scheduleMinutes);
+  const ends=[schedule.shift1_end,schedule.shift2_end].map(scheduleMinutes);
+  const epochs=starts.map(m=>base.getTime()+m*60000);
+  let index=0;
+  if(epochs.length>1 && Math.abs(start.getTime()-epochs[1])<Math.abs(start.getTime()-epochs[0]))index=1;
+  const expectedStart=epochs[index], expectedEnd=base.getTime()+ends[index]*60000;
+  const inMs=start.getTime(), outMs=end?end.getTime():null;
+  const late=Math.max(0,Math.round((inMs-expectedStart)/60000));
+  const early=outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
+  const crossesBreak=outMs!==null && index===0 && outMs>=epochs[1];
+  const overlap=outMs===null?0:Math.max(0,Math.round((Math.min(outMs,expectedEnd)-Math.max(inMs,expectedStart))/60000));
+  const beforeStart=Math.max(0,Math.round((expectedStart-inMs)/60000));
+  const afterEnd=outMs===null?0:(!crossesBreak?Math.max(0,Math.round((outMs-expectedEnd)/60000)):0);
+  const overtime=beforeStart+afterEnd;
+  const scheduled=ends[index]-starts[index];
+  const worked=overlap+overtime;
+  return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,crossesBreak,
+    expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd)};
+}
+function dailyWorkMetrics(records) {
+  const days=new Map();
+  for(const r of records){
+    const key=r.employee_id+'|'+reportDateKey(r.check_in);
+    if(!days.has(key))days.set(key,[]);
+    days.get(key).push(r);
+  }
+  const result=new Map();
+  for(const [key,items] of days){
+    items.sort((a,b)=>new Date(a.check_in)-new Date(b.check_in));
+    let worked=0,late=0,early=0,overtime=0,scheduled=0,open=false,used=new Set();
+    for(const r of items){
+      const m=attendanceWorkMetrics(r);
+      if(!m)continue;
+      worked+=m.worked;late+=m.late;early+=m.early;overtime+=m.overtime;scheduled+=m.scheduled;
+      open=open||!m.complete;used.add(m.shift);
+    }
+    result.set(key,{worked,late,early,overtime,scheduled,open,shifts:used.size});
+  }
+  return result;
+}
 function deviceLabel(info) {
   const ua = info && info.user_agent ? String(info.user_agent) : '';
   if (!ua) return 'ثبت نشده';
@@ -774,7 +865,7 @@ async function loadReport() {
   reportLoaded = false;
   say('reportMsg', 'در حال دریافت سوابق...', 1);
   try {
-    const [records] = await Promise.all([all('attendance_records', '*')]);
+    const [records] = await Promise.all([all('attendance_records', '*'), loadWorkSchedule()]);
     reportCache = records;
     fillReportEmployees();
     const from = $('reportFrom').value, to = $('reportTo').value, empId = $('reportEmployee').value;
@@ -784,20 +875,27 @@ async function loadReport() {
       return (!from || day >= from) && (!to || day <= to) && (!empId || r.employee_id === empId);
     }).sort((a,b) => new Date(b.check_in) - new Date(a.check_in));
     const names = new Map(emps.map(e => [e.id, e.full_name]));
+    const dailyMetrics=dailyWorkMetrics(filtered);
     $('reportRows').innerHTML = filtered.length ? filtered.map(r => {
-      const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
-      const duration = mins === null ? 'باز' : Math.floor(mins/60) + 'ساعت و ' + (mins%60) + 'دقیقه';
-      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی');
+      const m=attendanceWorkMetrics(r);
+      const daily=dailyMetrics.get(r.employee_id+'|'+reportDateKey(r.check_in));
+      const duration = m ? fmtMinutes(m.worked) + (m.complete?'':' (باز)') : '—';
+      const late = m ? fmtMinutes(m.late) : '—';
+      const early = m ? fmtMinutes(m.early) : '—';
+      const overtime = m ? fmtMinutes(m.overtime) : '—';
+      const status = r.needs_review ? '<span class="er">نیازمند بررسی</span>' : (m && m.crossesBreak ? '<span class="er">ثبت عبوری از زمان استراحت؛ بررسی شود</span>' : (r.edited ? '<span class="m">اصلاح‌شده</span>' : 'عادی'));
       const inDevice = deviceLabel(r.check_in_device_info);
       const outDevice = deviceLabel(r.check_out_device_info);
       const deviceCell = '<div title="اطلاعات دستگاه از مرورگر ارسال شده و قابل جعل است"><small>ورود: ' + esc(inDevice) + '</small><br><small>خروج: ' + esc(outDevice) + '</small></div>';
       return '<tr><td>' + esc(names.get(r.employee_id) || 'کارمند حذف‌شده') + '</td><td>' +
         reportFaTime(r.check_in) + '</td><td>' + reportFaTime(r.check_out) + '</td><td>' +
-        duration + '</td><td>' + status + '</td><td>' + deviceCell + '</td><td class="a" data-record="' + r.id + '">' +
+        duration + '</td><td>' + late + '</td><td>' + early + '</td><td>' + overtime + '</td><td>' + status + '</td><td>' + deviceCell + '</td><td class="a" data-record="' + r.id + '">' +
         '<button class="g" data-report-action="edit">اصلاح</button>' +
         '<button class="g" data-report-action="delete">حذف</button></td></tr>';
-    }).join('') : '<tr><td colspan="7" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
-    say('reportMsg', 'تعداد رکوردهای نمایش‌داده‌شده: ' + filtered.length, 1);
+    }).join('') : '<tr><td colspan="10" class="m">رکوردی برای این فیلترها پیدا نشد.</td></tr>';
+    const dailyTotals=dailyWorkMetrics(filtered);
+    const totals=[...dailyTotals.values()].reduce((a,d)=>({worked:a.worked+d.worked,late:a.late+d.late,early:a.early+d.early,overtime:a.overtime+d.overtime}),{worked:0,late:0,early:0,overtime:0});
+    say('reportMsg', 'تعداد رکورد: '+filtered.length+' | کارکرد خالص: '+fmtMinutes(totals.worked)+' | تأخیر: '+fmtMinutes(totals.late)+' | تعجیل خروج: '+fmtMinutes(totals.early)+' | اضافه‌کاری: '+fmtMinutes(totals.overtime), 1);
     reportCache = filtered;
     reportLoaded = true;
   } catch (err) {
@@ -908,21 +1006,21 @@ $('exportReportExcel').onclick = async () => {
   if (!reportLoaded) await loadReport();
   if (!reportLoaded) return;
   if (!reportCache.length) { say('reportMsg', 'برای فیلترهای انتخاب‌شده رکوردی وجود ندارد.'); return; }
+  await loadWorkSchedule();
   const names = new Map(emps.map(e => [e.id, e.full_name]));
+  const dailyMetrics=dailyWorkMetrics(reportCache);
   const rows = [
-    ['نام پرسنل','زمان ورود','زمان خروج','مدت حضور','وضعیت','دستگاه ثبت ورود','دستگاه ثبت خروج'],
+    ['نام پرسنل','تاریخ','زمان ورود','زمان خروج','نوبت','کارکرد خالص','تأخیر','تعجیل خروج','اضافه‌کاری','وضعیت','دستگاه ثبت ورود','دستگاه ثبت خروج'],
     ...reportCache.map(r => {
-      const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
-      const duration = mins === null ? 'شیفت باز' : Math.floor(mins/60) + ' ساعت و ' + (mins%60) + ' دقیقه';
-      const status = r.needs_review ? 'نیازمند بررسی' : (r.edited ? 'اصلاح‌شده' : 'عادی');
+      const m=attendanceWorkMetrics(r);
+      const daily=dailyMetrics.get(r.employee_id+'|'+reportDateKey(r.check_in));
+      const status = r.needs_review ? 'نیازمند بررسی' : (m && m.crossesBreak ? 'ثبت عبوری از زمان استراحت؛ بررسی شود' : (r.edited ? 'اصلاح‌شده' : 'عادی'));
       return [
-        names.get(r.employee_id) || 'کارمند حذف‌شده',
-        reportFaTime(r.check_in),
-        reportFaTime(r.check_out),
-        duration,
-        status,
-        deviceLabel(r.check_in_device_info),
-        deviceLabel(r.check_out_device_info)
+        names.get(r.employee_id) || 'کارمند حذف‌شده', reportDateKey(r.check_in),
+        reportFaTime(r.check_in), reportFaTime(r.check_out),m?'نوبت '+m.shift:'—',
+        m?fmtMinutes(m.worked)+(m.complete?'':' (باز)'):'—',
+        m?fmtMinutes(m.late):'—',m?fmtMinutes(m.early):'—',m?fmtMinutes(m.overtime):'—',
+        status,deviceLabel(r.check_in_device_info),deviceLabel(r.check_out_device_info)
       ];
     })
   ];
@@ -957,10 +1055,15 @@ $('exportReport').onclick = async () => {
   if (!reportLoaded) return;
   if (!reportCache.length) { say('reportMsg', 'برای فیلترهای انتخاب‌شده رکوردی وجود ندارد.'); return; }
   const names = new Map(emps.map(e => [e.id, e.full_name]));
-  const rows = [['employee','check_in','check_out','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => [
-    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited,
-    deviceLabel(r.check_in_device_info), deviceLabel(r.check_out_device_info)
-  ])];
+  await loadWorkSchedule();
+  const rows = [['employee','date','check_in','check_out','shift','net_work_minutes','lateness_minutes','early_leave_minutes','overtime_minutes','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => {
+    const m=attendanceWorkMetrics(r);
+    return [
+      names.get(r.employee_id) || '', reportDateKey(r.check_in), r.check_in || '', r.check_out || '',
+      m?'shift '+m.shift:'',m?m.worked:'',m?m.late:'',m?m.early:'',m?m.overtime:'',
+      r.needs_review, r.edited,deviceLabel(r.check_in_device_info),deviceLabel(r.check_out_device_info)
+    ];
+  })];
   const csvCell = v => {
     const raw = String(v ?? '');
     const safe = /^[=+@-]/.test(raw) ? "'" + raw : raw;
