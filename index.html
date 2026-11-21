@@ -62,7 +62,6 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     <p class="err" id="hmsg"></p>
     <div class="row">
       <button id="mClock">ثبت ورود / خروج</button>
-      <button id="mRec" class="g">سوابق من</button>
     </div>
     <div class="staff-access">
       <p>ورود به پنل مدیریت فروشگاه</p>
@@ -81,11 +80,11 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
   </section>
 
   <section id="actions" hidden>
-    <h2 id="staffTitle"></h2>
-    <p class="hint">نوع عملیات را انتخاب کنید</p>
+    <h2 id="staffTitle">پنل پرسنل</h2>
+    <p class="hint">از این بخش می‌توانید عملیات حضور و درخواست‌های پرسنلی خود را مدیریت کنید.</p>
     <div class="row"><button id="doIn">ثبت ورود</button><button id="doOut" class="g">ثبت خروج</button></div>
     <div class="row"><button id="doLeave" class="g">درخواست ثبت مرخصی</button><button id="doEdit" class="g">ارسال درخواست ویرایش</button></div>
-    <div class="row"><button id="doStatus" class="g">پیگیری درخواست‌ها</button></div>
+    <div class="row"><button id="doRecords" class="g">سوابق ورود و خروج من</button><button id="doStatus" class="g">پیگیری درخواست‌ها</button></div>
     <p class="err" id="actionMsg"></p>
     <div class="tw" style="margin-top:12px;text-align:right;padding:8px">
       <h3 style="font-size:15px;margin:6px 0">آخرین وضعیت درخواست‌های شما</h3>
@@ -162,7 +161,7 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
         </div>
       </form>
     </section>
-    <button id="out">خروج از این صفحه</button>
+    <button id="out" class="g">بازگشت به پنل پرسنل</button>
   </section>
 </main>
 
@@ -232,17 +231,9 @@ function show(n) {
   for (const k in V) V[k].hidden = k !== n;
   if (n === 'pin') $('pin').focus();
 }
-function setMode(m) {
-  mode = m;
-  $('mClock').className = m === 'clock' ? '' : 'g';
-  $('mRec').className = m === 'rec' ? '' : 'g';
-  $('hint').textContent = m === 'clock'
-    ? 'برای ثبت ورود یا خروج، کد پرسنلی خود را وارد کنید.'
-    : 'برای مشاهده سوابق، کد پرسنلی خود را وارد کنید.';
-}
 function home(msg) {
   pass = '';
-  show('home'); setMode('clock');
+  show('home');
   $('hmsg').textContent = msg || '';
   idle(msg ? 8 : 0);
 }
@@ -257,10 +248,9 @@ setInterval(() => {
 
 // ---------- شروع فرایند ثبت حضور ----------
 $('mClock').onclick = () => {
-  setMode('clock'); $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent='';
+  $('hmsg').textContent = ''; $('pin').value=''; $('perr').textContent='';
   $('pin').focus(); show('pin'); idle(45);
 };
-$('mRec').onclick = () => setMode('rec');
 $('ownerLogin').onclick = () => { location.href = 'admin.html?role=owner'; };
 $('managerLogin').onclick = () => { location.href = 'admin.html?role=store_manager'; };
 $('cancel').onclick = () => home();
@@ -271,16 +261,11 @@ async function submitPin() {
   if (!/^\d{4,6}$/.test(pin)) { $('perr').textContent = 'کد پرسنلی باید ۴ تا ۶ رقم باشد.'; return; }
   $('ok').disabled = true; idle(30);
   try {
-    if (mode === 'clock') {
-      pass = pin;
-      staffName = 'کارمند';
-      $('staffTitle').textContent = 'پرسنل';
-      $('actionMsg').textContent = '';
-      show('actions'); idle(90); loadActionRequests();
-    } else {
-      pass = pin; mstart = monthStart(Date.now());
-      await loadRec();
-    }
+    pass = pin;
+    staffName = 'کارمند';
+    $('staffTitle').textContent = 'پنل پرسنل';
+    $('actionMsg').textContent = '';
+    show('actions'); idle(90); loadActionRequests();
   } catch (e) {
     $('perr').textContent = e && e.code === 1 ? 'اجازه دسترسی به موقعیت مکانی داده نشد.' :
       e && e.code === 2 ? 'موقعیت GPS در دسترس نیست؛ دوباره تلاش کنید.' :
@@ -367,6 +352,7 @@ $('leaveEndCalendar').onclick=e=>{
   $('leaveMsg').textContent='';
 };
 $('cancelLeave').onclick=()=>{ show('actions'); idle(90); };
+$('doRecords').onclick=async()=>{ try { mstart=monthStart(Date.now()); await loadRec(); } catch(e) { $('actionMsg').textContent='دریافت سوابق ناموفق بود: '+e.message; } };
 $('doEdit').onclick=async()=>{ try { mstart=monthStart(Date.now()); await loadRec(); } catch(e) { $('actionMsg').textContent='دریافت سوابق ناموفق بود: '+e.message; } };
 $('doStatus').onclick=loadMyRequests;
 $('backActions').onclick=()=>{ show('actions'); idle(90); };
@@ -566,7 +552,7 @@ $('tb').onclick = async e => {
 };
 $('pv').onclick = () => { mstart = monthStart(mstart - D); loadRec().catch(() => {}); };
 $('nx').onclick = () => { mstart = nextMonth(mstart); loadRec().catch(() => {}); };
-$('out').onclick = () => home();
+$('out').onclick = () => { show('actions'); idle(90); };
 
 // ---------- شروع ----------
 if (!C.SUPABASE_URL || C.SUPABASE_URL.includes('PASTE')) {
