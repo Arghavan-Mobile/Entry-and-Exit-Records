@@ -221,6 +221,7 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
         </select>
         <button type="button" id="loadReport">نمایش گزارش</button>
         <button type="button" class="g" id="exportReport">خروجی CSV</button>
+        <button type="button" class="g" id="exportReportExcel">خروجی اکسل</button>
       </div>
       <p class="s" id="reportMsg"></p>
       <div class="tw"><table><thead><tr><th>کارمند</th><th>ورود</th><th>خروج</th><th>مدت</th><th>وضعیت</th><th>دستگاه ثبت‌کننده</th><th>عملیات</th></tr></thead><tbody id="reportRows"></tbody></table></div>
@@ -806,6 +807,52 @@ $('reportRows').onclick = async e => {
   });
   if (error) { say('reportMsg', 'اصلاح ناموفق بود: ' + error.message); b.disabled = false; return; }
   say('reportMsg', 'رکورد اصلاح شد و در ممیزی ثبت شد.', 1); loadReport();
+};
+$('exportReportExcel').onclick = () => {
+  if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
+  const names = new Map(emps.map(e => [e.id, e.full_name]));
+  const rows = [
+    ['نام پرسنل','زمان ورود','زمان خروج','مدت حضور','وضعیت','دستگاه ثبت ورود','دستگاه ثبت خروج'],
+    ...reportCache.map(r => {
+      const mins = r.check_out ? Math.max(0, Math.round((new Date(r.check_out)-new Date(r.check_in))/60000)) : null;
+      const duration = mins === null ? 'شیفت باز' : Math.floor(mins/60) + ' ساعت و ' + (mins%60) + ' دقیقه';
+      const status = r.needs_review ? 'نیازمند بررسی' : (r.edited ? 'اصلاح‌شده' : 'عادی');
+      return [
+        names.get(r.employee_id) || 'کارمند حذف‌شده',
+        reportFaTime(r.check_in),
+        reportFaTime(r.check_out),
+        duration,
+        status,
+        deviceLabel(r.check_in_device_info),
+        deviceLabel(r.check_out_device_info)
+      ];
+    })
+  ];
+  const xmlEscape = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const xmlRows = rows.map((row,ri) =>
+    '<Row>' + row.map((value,ci) =>
+      '<Cell' + (ri===0 ? ' ss:StyleID="Header"' : '') + '><Data ss:Type="String">' +
+      xmlEscape(value) + '</Data></Cell>'
+    ).join('') + '</Row>'
+  ).join('');
+  const workbook = '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<?mso-application progid="Excel.Sheet"?>' +
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ' +
+    'xmlns:o="urn:schemas-microsoft-com:office:office" ' +
+    'xmlns:x="urn:schemas-microsoft-com:office:excel" ' +
+    'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" ' +
+    'xmlns:html="http://www.w3.org/TR/REC-html40">' +
+    '<Styles><Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#EAE8F5" ss:Pattern="Solid"/></Style></Styles>' +
+    '<Worksheet ss:Name="گزارش حضور و غیاب"><Table>' + xmlRows +
+    '</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">' +
+    '<DisplayRightToLeft/><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane>' +
+    '</WorksheetOptions></Worksheet></Workbook>';
+  const blob = new Blob(['\ufeff' + workbook], {type:'application/vnd.ms-excel;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'arghavan-attendance.xls'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  say('reportMsg', 'فایل اکسل گزارش آماده و دانلود شد.', 1);
 };
 $('exportReport').onclick = () => {
   if (!reportCache.length) { say('reportMsg', 'ابتدا گزارش را بارگذاری کن.'); return; }
