@@ -56,10 +56,16 @@ Deno.serve(async (req: Request) => {
         return reply({ error: "invalid_public_key" }, 400);
       }
       const { data: current, error: currentError } = await admin.from("employee_devices")
-        .select("id,status").eq("employee_id", employee.employee_id).in("status", ["active", "pending"]);
+        .select("id,status,public_jwk").eq("employee_id", employee.employee_id).in("status", ["active", "pending"]);
       if (currentError) throw new Error("device_state_unavailable");
       if ((current || []).some((d: any) => d.status === "active")) return reply({ error: "device_already_registered" }, 409);
-      if ((current || []).some((d: any) => d.status === "pending")) return reply({ error: "device_approval_pending", device_id: current.find((d: any) => d.status === "pending").id });
+      const pending = (current || []).find((d: any) => d.status === "pending");
+      if (pending) {
+        const sameKey = pending.public_jwk?.kty === jwk.kty && pending.public_jwk?.crv === jwk.crv &&
+          pending.public_jwk?.x === jwk.x && pending.public_jwk?.y === jwk.y;
+        if (!sameKey) return reply({ error: "another_device_is_waiting_for_approval" }, 409);
+        return reply({ ok: true, device_id: pending.id, status: "pending", employee_name: employee.employee_name });
+      }
       const status = employee.enrollment_authorized ? "active" : "pending";
       const { data: device, error: insertError } = await admin.from("employee_devices")
         .insert({ employee_id: employee.employee_id, public_jwk: jwk, device_label: String(body.device_label || "گوشی پرسنل").slice(0, 80), status,
