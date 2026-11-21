@@ -291,25 +291,35 @@ async function gateway(payload){
     body:JSON.stringify(payload)
   });
   const data=await response.json().catch(()=>({error:'پاسخ نامعتبر از سرور'}));
-  if(!response.ok){const e=new Error(data.error||'درخواست دستگاه ناموفق بود');e.code=data.error||'gateway_error';throw e;}
+  if(!response.ok){const e=new Error(data.error||'درخواست دستگاه ناموفق بود');e.code=data.error||'gateway_error';e.device_id=data.device_id||null;throw e;}
   return data;
 }
 async function ensureDevice(pin){
   let local=await getLocalDevice();
   if(!local){
     const generated=await createDeviceKey();
-    const enrolled=await gateway({action:'enroll',pin,public_jwk:generated.publicJwk,device_label:(navigator.userAgent||'گوشی پرسنل').slice(0,80)});
-    local={device_id:enrolled.device_id,private_key:generated.privateKey};
+    local={device_id:null,public_jwk:generated.publicJwk,private_key:generated.privateKey};
     await deviceStore('readwrite','device',local);
-    if(enrolled.status==='pending') return {pending:true};
+  }
+  if(!local.device_id){
+    let enrolled;
+    try{
+      enrolled=await gateway({action:'enroll',pin,public_jwk:local.public_jwk,device_label:(navigator.userAgent||'گوشی پرسنل').slice(0,80)});
+    }catch(e){
+      if(e.code==='device_approval_pending' && e.device_id) enrolled={device_id:e.device_id,status:'pending'};
+      else throw e;
+    }
+    local.device_id=enrolled.device_id;
+    await deviceStore('readwrite','device',local);
+    if(enrolled.status==='pending')return {pending:true};
   }
   const status=await gateway({action:'status',pin,device_id:local.device_id});
-  if(status.status==='pending') return {pending:true};
+  if(status.status==='pending')return {pending:true};
   if(status.status!=='active' && status.enrollment_authorized){
     await deviceStore('readwrite','device',null);
     return await ensureDevice(pin);
   }
-  if(status.status!=='active') throw new Error('دستگاه شما فعال نیست؛ از مدیر بخواهید مجوز اتصال مجدد صادر کند.');
+  if(status.status!=='active')throw new Error('دستگاه شما فعال نیست؛ از مدیر بخواهید مجوز اتصال مجدد صادر کند.');
   return {pending:false,device:local};
 }
 async function deviceExecute(fn,args){
