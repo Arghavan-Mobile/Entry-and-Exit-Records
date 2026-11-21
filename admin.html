@@ -625,7 +625,7 @@ async function loadDevices(){
   const rows=data||[];
   $('deviceRows').innerHTML=rows.map(d=>{
     const status=d.status==='pending'?'در انتظار تأیید':d.status==='active'?'فعال':d.status==='revoked'?'لغوشده':'ردشده';
-    const actions=d.status==='pending'?'<button class="g" data-device-action="approved" data-id="'+d.device_id+'">تأیید</button><button class="g" data-device-action="rejected" data-id="'+d.device_id+'">رد</button>':'—';
+    const actions=d.status==='pending'?'<button class="g" data-device-action="approved" data-device-key="'+d.device_id+'">تأیید</button><button class="g" data-device-action="rejected" data-device-key="'+d.device_id+'">رد</button>':'—';
     return '<tr><td>'+esc(d.employee_name)+'</td><td>'+esc(d.device_label||'گوشی پرسنل')+'</td><td>'+status+'</td><td>'+new Date(d.created_at).toLocaleString('fa-IR')+'</td><td class="a">'+actions+'</td></tr>';
   }).join('')||'<tr><td colspan="5" class="m">درخواست یا دستگاه فعالی وجود ندارد.</td></tr>';
   say('deviceMsg','فهرست دستگاه‌ها به‌روز شد.',true);
@@ -634,7 +634,7 @@ $('refreshDevices').onclick=loadDevices;
 $('deviceRows').onclick=async e=>{
   const b=e.target.closest('button[data-device-action]');if(!b)return;
   b.disabled=true;
-  const {error}=await sb.rpc('manager_review_employee_device',{p_device:b.dataset.id,p_decision:b.dataset.deviceAction});
+  const {error}=await sb.rpc('manager_review_employee_device',{p_device:b.dataset.deviceKey,p_decision:b.dataset.deviceAction});
   if(error)say('deviceMsg','ثبت تصمیم ناموفق بود: '+error.message);
   else say('deviceMsg',b.dataset.deviceAction==='approved'?'گوشی پرسنل تأیید و فعال شد.':'درخواست اتصال گوشی رد شد.',true);
   await loadDevices();
