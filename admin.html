@@ -339,7 +339,7 @@ th{background:#f4f2fc}
         <div class="schedule-effective-field">
           <label for="setScheduleEffectiveBtn">تاریخ شروع اجرای این مقررات (شمسی)</label>
           <button type="button" class="g jalali-date-btn" id="setScheduleEffectiveBtn">انتخاب تاریخ شمسی</button>
-          <input id="setScheduleEffective" type="date" required aria-label="تاریخ میلادی برای ذخیره و پردازش">
+          <input id="setScheduleEffective" type="date" aria-label="تاریخ میلادی برای ذخیره و پردازش">
           <div class="jalali-calendar" id="setScheduleEffectiveCalendar" hidden></div>
         </div>
         <label>مقررات اختصاصی پرسنل (اختیاری)<select id="setScheduleEmployee"><option value="">همه پرسنل (مقررات عمومی)</option></select></label>
@@ -677,6 +677,7 @@ $('fSettings').onsubmit = async e => {
       schedule.p_shift2_start >= schedule.p_shift2_end) {
     say('settingsMsg','بازه‌های کاری معتبر نیستند؛ شروع و پایان هر نوبت و فاصله بین دو نوبت را بررسی کن.'); return;
   }
+  if(!$('setScheduleEffective').value){say('settingsMsg','لطفاً تاریخ شروع اجرای مقررات را از تقویم شمسی انتخاب کن.');$('setScheduleEffectiveBtn').focus();return;}
   const workdays=[...$('workdayChoices').querySelectorAll('input:checked')].map(x=>Number(x.value));
   if(!workdays.length){say('settingsMsg','حداقل یک روز کاری انتخاب کن.');return;}
   const scheduleResult = await sb.rpc('admin_save_work_schedule', {
