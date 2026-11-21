@@ -93,6 +93,16 @@ a.l{color:var(--b);cursor:pointer;font-size:14px}
 .jalali-grid button.today{border-color:var(--b)}
 .jalali-cal-hint{font-size:11px;color:var(--m);margin:8px 0 0}
 .jalali-field input[type=date]{display:none}
+.schedule-effective-field{position:relative;max-width:440px;margin:10px 0 14px}
+.schedule-effective-field>label{display:block;font-size:14px;font-weight:700;margin:0 2px 6px}
+.schedule-effective-field .jalali-date-btn{min-height:48px;border:1px solid #d9d5ef;border-radius:12px;background:linear-gradient(180deg,#fff,#f8f7ff);font-weight:700;padding:12px 14px}
+.schedule-effective-field .jalali-calendar{min-width:min(320px,calc(100vw - 48px));right:0;left:auto}
+#workdayChoices{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px;margin:10px 0 16px}
+#workdayChoices .workday-option{display:flex;align-items:center;justify-content:center;gap:7px;min-height:48px;padding:9px 8px;border:1px solid #e1def2;border-radius:12px;background:#faf9ff;color:var(--t);font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+#workdayChoices .workday-option:has(input:checked){background:#efedff;border-color:#8d88d2;box-shadow:inset 0 0 0 1px #b7b2e8;color:var(--b)}
+#workdayChoices .workday-option input{width:18px;height:18px;min-height:18px;margin:0;flex:0 0 auto;accent-color:var(--b)}
+@media(max-width:800px){#workdayChoices{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}}
+@media(max-width:480px){#workdayChoices{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#workdayChoices .workday-option{min-height:46px;justify-content:flex-start;padding:9px 12px}}
 
 
 /* Responsive admin workspace visual refresh */
@@ -326,14 +336,22 @@ th{background:#f4f2fc}
         <p class="m">مقادیر پیش‌فرض: ۱۰:۳۰ تا ۱۴:۰۰ و ۱۶:۰۰ تا ۲۲:۰۰</p>
         <h3 style="margin:14px 0 4px">ثبت نسخه جدید مقررات ساعت کاری</h3>
         <p class="m">تغییرات فقط از تاریخ مؤثر اعمال می‌شوند و محاسبات روزهای قبل با نسخه قبلی باقی می‌مانند. انتخاب پرسنل اختیاری است؛ خالی یعنی مقررات عمومی.</p>
-        <label>تاریخ شروع اجرای این مقررات<input id="setScheduleEffective" type="date" required></label>
+        <div class="schedule-effective-field">
+          <label for="setScheduleEffectiveBtn">تاریخ شروع اجرای این مقررات (شمسی)</label>
+          <button type="button" class="g jalali-date-btn" id="setScheduleEffectiveBtn">انتخاب تاریخ شمسی</button>
+          <input id="setScheduleEffective" type="date" required aria-label="تاریخ میلادی برای ذخیره و پردازش">
+          <div class="jalali-calendar" id="setScheduleEffectiveCalendar" hidden></div>
+        </div>
         <label>مقررات اختصاصی پرسنل (اختیاری)<select id="setScheduleEmployee"><option value="">همه پرسنل (مقررات عمومی)</option></select></label>
         <div class="m">روزهای کاری هفته (روزهای انتخاب‌نشده تعطیل هفتگی محسوب می‌شوند):</div>
-        <div class="row" id="workdayChoices" style="gap:10px;flex-wrap:wrap">
-          <label><input type="checkbox" value="6" checked> شنبه</label><label><input type="checkbox" value="0" checked> یکشنبه</label>
-          <label><input type="checkbox" value="1" checked> دوشنبه</label><label><input type="checkbox" value="2" checked> سه‌شنبه</label>
-          <label><input type="checkbox" value="3" checked> چهارشنبه</label><label><input type="checkbox" value="4" checked> پنجشنبه</label>
-          <label><input type="checkbox" value="5" checked> جمعه</label>
+        <div id="workdayChoices" aria-label="انتخاب روزهای کاری هفته">
+          <label class="workday-option"><input type="checkbox" value="6" checked><span>شنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="0" checked><span>یکشنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="1" checked><span>دوشنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="2" checked><span>سه‌شنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="3" checked><span>چهارشنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="4" checked><span>پنجشنبه</span></label>
+          <label class="workday-option"><input type="checkbox" value="5" checked><span>جمعه</span></label>
         </div>
         <h3 style="margin:14px 0 4px">تعطیلات رسمی و تعطیلی فروشگاه</h3>
         <div class="row"><label style="flex:1">تاریخ تعطیلی<input id="holidayDate" type="date"></label><label style="flex:2">عنوان تعطیلی<input id="holidayTitle" maxlength="120" placeholder="مثلاً تعطیلی رسمی"></label><button type="button" class="g" id="saveHoliday">ثبت تعطیلی</button></div>
@@ -615,6 +633,7 @@ async function loadSettings() {
   $('setLock').value = data.lock_minutes;
   $('setInstruction').value = data.attendance_instruction || '';
   $('setScheduleEffective').value = reportTodayISO();
+  updateScheduleEffectiveLabel();
   $('holidayDate').value = reportTodayISO();
   await loadWorkSchedule();
   const todaySchedule = scheduleFor(null, reportTodayISO());
@@ -630,7 +649,7 @@ async function loadSettings() {
     $('workdayChoices').querySelectorAll('input').forEach(x=>x.checked=s.workdays.includes(Number(x.value)));
   };
   $('setScheduleEmployee').onchange=applyScheduleFields;
-  $('setScheduleEffective').onchange=applyScheduleFields;
+  $('setScheduleEffective').onchange=()=>{updateScheduleEffectiveLabel();applyScheduleFields();};
   applyScheduleFields();
   await loadWorkHolidays();
 }
@@ -788,6 +807,43 @@ function drawReportCalendar(which) {
   while(cells.length%7)cells.push('<span></span>');
   box.innerHTML='<div class="jalali-cal-head"><button type="button" class="g" data-report-nav="-1">ماه قبل</button><b>'+reportJalaliMonthTitle(anchor)+'</b><button type="button" class="g" data-report-nav="1">ماه بعد</button></div><div class="jalali-grid">'+['ش','ی','د','س','چ','پ','ج'].map(x=>'<span>'+x+'</span>').join('')+cells.join('')+'</div><p class="jalali-cal-hint">تاریخ‌ها بر اساس تقویم هجری شمسی هستند.</p>';
 }
+let scheduleEffectiveCalendarMonth=reportTodayISO();
+function updateScheduleEffectiveLabel() {
+  const iso=$('setScheduleEffective').value;
+  $('setScheduleEffectiveBtn').textContent=iso
+    ? new Intl.DateTimeFormat('fa-IR-u-ca-persian',{timeZone:'UTC',year:'numeric',month:'long',day:'numeric'}).format(new Date(iso+'T12:00:00Z'))
+    : 'انتخاب تاریخ شمسی';
+}
+function drawScheduleEffectiveCalendar() {
+  const box=$('setScheduleEffectiveCalendar'),input=$('setScheduleEffective');
+  const anchor=reportJalaliMonthStart(scheduleEffectiveCalendarMonth),first=new Date(anchor+'T12:00:00Z');
+  const p0=reportJalaliParts(anchor),offset=(first.getUTCDay()+1)%7,cells=[];
+  for(let i=0;i<offset;i++)cells.push('<span></span>');
+  let d=first;
+  for(let i=0;i<31;i++){
+    const iso=reportISO(d),p=reportJalaliParts(iso);
+    if(p.month!==p0.month||p.year!==p0.year)break;
+    const cls=(input.value===iso?'selected ':'')+(iso===reportTodayISO()?'today':'');
+    cells.push('<button type="button" data-schedule-date="'+iso+'" class="'+cls+'">'+Number(p.day).toLocaleString('fa-IR')+'</button>');
+    d.setUTCDate(d.getUTCDate()+1);
+  }
+  while(cells.length%7)cells.push('<span></span>');
+  box.innerHTML='<div class="jalali-cal-head"><button type="button" class="g" data-schedule-nav="-1">ماه قبل</button><b>'+reportJalaliMonthTitle(anchor)+'</b><button type="button" class="g" data-schedule-nav="1">ماه بعد</button></div><div class="jalali-grid">'+['ش','ی','د','س','چ','پ','ج'].map(x=>'<span>'+x+'</span>').join('')+cells.join('')+'</div><p class="jalali-cal-hint">تاریخ‌ها شمسی هستند؛ تاریخ برای ذخیره به‌صورت استاندارد تبدیل می‌شود.</p>';
+}
+$('setScheduleEffectiveBtn').onclick=()=>{
+  const box=$('setScheduleEffectiveCalendar');
+  $('reportFromCalendar').hidden=true;$('reportToCalendar').hidden=true;
+  if(box.hidden){scheduleEffectiveCalendarMonth=$('setScheduleEffective').value||reportTodayISO();drawScheduleEffectiveCalendar();box.hidden=false;}
+  else box.hidden=true;
+};
+$('setScheduleEffectiveCalendar').onclick=e=>{
+  const nav=e.target.closest('button[data-schedule-nav]');
+  if(nav){scheduleEffectiveCalendarMonth=reportJalaliMonthMove(scheduleEffectiveCalendarMonth,Number(nav.dataset.scheduleNav));drawScheduleEffectiveCalendar();return;}
+  const day=e.target.closest('button[data-schedule-date]');if(!day)return;
+  $('setScheduleEffective').value=day.dataset.scheduleDate;
+  updateScheduleEffectiveLabel();$('setScheduleEffective').onchange?.();
+  $('setScheduleEffectiveCalendar').hidden=true;
+};
 function openReportCalendar(which) {
   const box=$('report'+(which==='from'?'From':'To')+'Calendar');
   const other=$('report'+(which==='from'?'To':'From')+'Calendar');
@@ -809,6 +865,7 @@ function openReportCalendar(which) {
 });
 document.addEventListener('click',e=>{
   if(!e.target.closest('.jalali-field')){ $('reportFromCalendar').hidden=true; $('reportToCalendar').hidden=true; }
+  if(!e.target.closest('.schedule-effective-field'))$('setScheduleEffectiveCalendar').hidden=true;
 });
 const reportDateKey = v => {
   const parts = new Intl.DateTimeFormat('en-CA', {
