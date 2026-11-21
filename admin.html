@@ -807,7 +807,7 @@ function attendanceWorkMetrics(record, schedule=workSchedule) {
   if(epochs.length>1 && Math.abs(start.getTime()-epochs[1])<Math.abs(start.getTime()-epochs[0]))index=1;
   const expectedStart=epochs[index], expectedEnd=base.getTime()+ends[index]*60000;
   const inMs=start.getTime(), outMs=end?end.getTime():null;
-  const actual=Math.max(0,Math.round((outMs??inMs)-inMs)/60000);
+  const actual=Math.max(0,Math.round(((outMs??inMs)-inMs)/60000));
   const late=Math.max(0,Math.round((inMs-expectedStart)/60000));
   const early=outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
   const overtime=outMs===null?0:Math.max(0,Math.round((outMs-expectedEnd)/60000));
@@ -1052,10 +1052,15 @@ $('exportReport').onclick = async () => {
   if (!reportLoaded) return;
   if (!reportCache.length) { say('reportMsg', 'برای فیلترهای انتخاب‌شده رکوردی وجود ندارد.'); return; }
   const names = new Map(emps.map(e => [e.id, e.full_name]));
-  const rows = [['employee','check_in','check_out','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => [
-    names.get(r.employee_id) || '', r.check_in || '', r.check_out || '', r.needs_review, r.edited,
-    deviceLabel(r.check_in_device_info), deviceLabel(r.check_out_device_info)
-  ])];
+  await loadWorkSchedule();
+  const rows = [['employee','date','check_in','check_out','shift','net_work_minutes','lateness_minutes','early_leave_minutes','overtime_minutes','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => {
+    const m=attendanceWorkMetrics(r);
+    return [
+      names.get(r.employee_id) || '', reportDateKey(r.check_in), r.check_in || '', r.check_out || '',
+      m?'shift '+m.shift:'',m?m.worked:'',m?m.late:'',m?m.early:'',m?m.overtime:'',
+      r.needs_review, r.edited,deviceLabel(r.check_in_device_info),deviceLabel(r.check_out_device_info)
+    ];
+  })];
   const csvCell = v => {
     const raw = String(v ?? '');
     const safe = /^[=+@-]/.test(raw) ? "'" + raw : raw;
