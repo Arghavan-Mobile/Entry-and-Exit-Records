@@ -307,6 +307,17 @@ th{background:#f4f2fc}
         <label>حداکثر طول شیفت باز (ساعت)<input id="setShift" type="number" min="1" max="48" required></label>
         <label>حداکثر تلاش PIN اشتباه<input id="setAttempts" type="number" min="3" max="20" required></label>
         <label>مدت قفل پس از خطا (دقیقه)<input id="setLock" type="number" min="1" max="1440" required></label>
+        <h3 style="margin:12px 0 4px">ساعت کاری روزانه (به وقت تهران)</h3>
+        <p class="m">دو بازه کاری تعریف کن؛ محاسبه تأخیر، تعجیل در خروج، اضافه‌کاری و کارکرد خالص بر اساس همین بازه‌ها انجام می‌شود.</p>
+        <div class="row">
+          <label style="flex:1;min-width:130px">شروع نوبت اول<input id="setShift1Start" type="time" required></label>
+          <label style="flex:1;min-width:130px">پایان نوبت اول<input id="setShift1End" type="time" required></label>
+        </div>
+        <div class="row">
+          <label style="flex:1;min-width:130px">شروع نوبت دوم<input id="setShift2Start" type="time" required></label>
+          <label style="flex:1;min-width:130px">پایان نوبت دوم<input id="setShift2End" type="time" required></label>
+        </div>
+        <p class="m">مقادیر پیش‌فرض: ۱۰:۳۰ تا ۱۴:۰۰ و ۱۶:۰۰ تا ۲۲:۰۰</p>
         <label>دستورالعمل اختیاری برای پرسنل (حداکثر ۲۰۰۰ حرف)<textarea id="setInstruction" maxlength="2000" rows="5" placeholder="در صورت نیاز، قوانین و توضیحات حضور و غیاب را بنویسید؛ خالی گذاشتن یعنی بدون دستورالعمل اضافی."></textarea></label>
         <p class="s" id="settingsMsg"></p>
         <button>ذخیره تنظیمات</button>
@@ -574,7 +585,7 @@ $('inviteRows').onclick = async e => {
 // ---------- تنظیمات ----------
 async function loadSettings() {
   const {data, error} = await sb.from('settings')
-    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes,attendance_instruction')
+    .select('shop_name,min_gap_minutes,max_shift_hours,max_pin_attempts,lock_minutes,attendance_instruction,shift1_start,shift1_end,shift2_start,shift2_end')
     .eq('id', 1).single();
   if (error) { say('settingsMsg', 'دریافت تنظیمات ناموفق بود: ' + error.message); return; }
   $('setShop').value = data.shop_name || '';
@@ -583,6 +594,10 @@ async function loadSettings() {
   $('setAttempts').value = data.max_pin_attempts;
   $('setLock').value = data.lock_minutes;
   $('setInstruction').value = data.attendance_instruction || '';
+  $('setShift1Start').value = String(data.shift1_start || '10:30:00').slice(0,5);
+  $('setShift1End').value = String(data.shift1_end || '14:00:00').slice(0,5);
+  $('setShift2Start').value = String(data.shift2_start || '16:00:00').slice(0,5);
+  $('setShift2End').value = String(data.shift2_end || '22:00:00').slice(0,5);
 }
 $('fSettings').onsubmit = async e => {
   e.preventDefault();
@@ -599,11 +614,23 @@ $('fSettings').onsubmit = async e => {
       args.p_lock_minutes < 1 || args.p_lock_minutes > 1440) {
     say('settingsMsg', 'یکی از مقادیر خارج از محدوده مجاز است.'); return;
   }
+  const schedule = {
+    p_shift1_start:$('setShift1Start').value, p_shift1_end:$('setShift1End').value,
+    p_shift2_start:$('setShift2Start').value, p_shift2_end:$('setShift2End').value
+  };
+  if (!schedule.p_shift1_start || !schedule.p_shift1_end || !schedule.p_shift2_start || !schedule.p_shift2_end ||
+      schedule.p_shift1_start >= schedule.p_shift1_end || schedule.p_shift1_end >= schedule.p_shift2_start ||
+      schedule.p_shift2_start >= schedule.p_shift2_end) {
+    say('settingsMsg','بازه‌های کاری معتبر نیستند؛ شروع و پایان هر نوبت و فاصله بین دو نوبت را بررسی کن.'); return;
+  }
   const {error} = await sb.rpc('admin_update_settings', args);
   if (error) { say('settingsMsg', 'ذخیره تنظیمات ناموفق بود: ' + error.message); return; }
+  const scheduleResult = await sb.rpc('admin_update_work_schedule', schedule);
+  if (scheduleResult.error) { say('settingsMsg', 'تنظیمات عمومی ذخیره شد اما ساعت کاری ذخیره نشد: ' + scheduleResult.error.message); return; }
   const instructionResult = await sb.rpc('admin_update_attendance_instruction', {p_instruction: $('setInstruction').value});
-  if (instructionResult.error) { say('settingsMsg', 'تنظیمات پایه ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
-  say('settingsMsg', 'تنظیمات و دستورالعمل اختیاری ذخیره شدند و در گزارش ممیزی ثبت شدند.', 1);
+  if (instructionResult.error) { say('settingsMsg', 'ساعت کاری ذخیره شد اما دستورالعمل ذخیره نشد: ' + instructionResult.error.message); return; }
+  reportLoaded = false;
+  say('settingsMsg', 'ساعت کاری و سایر تنظیمات ذخیره و در گزارش ممیزی ثبت شدند.', 1);
 };
 
 // ---------- پرسنل ----------
