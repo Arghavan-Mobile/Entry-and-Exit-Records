@@ -142,6 +142,26 @@ th{background:#f6f5fc;color:var(--m);font-weight:600;position:sticky;top:0}
     <div class="tw"><table id="tb"></table></div>
     <p id="sum"></p>
     <p id="reqmsg" class="err"></p>
+    <section id="correctionFormBox" hidden class="box" style="margin:12px 0;text-align:right">
+      <h3 style="margin-top:0">ثبت درخواست اصلاح ساعت</h3>
+      <p id="correctionRecordLabel" class="m"></p>
+      <form id="correctionForm">
+        <label>ساعت ورود صحیح
+          <input id="correctionCheckIn" type="datetime-local" required>
+        </label>
+        <label>ساعت خروج صحیح (در صورت ثبت‌نشدن، خالی بگذارید)
+          <input id="correctionCheckOut" type="datetime-local">
+        </label>
+        <label>دلیل درخواست اصلاح
+          <textarea id="correctionReason" rows="3" maxlength="500" minlength="5" required placeholder="مثلاً ساعت ورود را به‌دلیل اختلال دستگاه ثبت نکردم..."></textarea>
+        </label>
+        <p id="correctionFormMsg" class="err"></p>
+        <div class="row">
+          <button type="submit" id="sendCorrection">ارسال درخواست برای مدیر</button>
+          <button type="button" class="g" id="cancelCorrection">انصراف</button>
+        </div>
+      </form>
+    </section>
     <button id="out">خروج از این صفحه</button>
   </section>
 </main>
@@ -154,7 +174,7 @@ const C = window.APP_CONFIG || {};
 const TZ = 'Asia/Tehran', H = 36e5, D = 864e5, OFF = 3.5 * H;
 const $ = id => document.getElementById(id);
 const V = {home: $('home'), pin: $('pinv'), actions: $('actions'), leave: $('leave'), myRequests: $('myRequests'), res: $('res'), rec: $('rec')};
-let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '';
+let mode = 'clock', pass = '', mstart = 0, tmr, recRows = [], staffName = '', correctionTarget = null;
 
 
 // ---------- ابزارها ----------
@@ -463,56 +483,86 @@ async function loadRec() {
   }
   if (!r.records.length) rows += '<tr><td colspan="5" class="m">در این ماه رکوردی نیست.</td></tr>';
   $('tb').innerHTML = rows;
+  $('correctionFormBox').hidden=true; correctionTarget=null;
   $('sum').textContent = 'جمع کار این ماه: ' + dur(total);
   $('nx').disabled = next > Date.now();
   show('rec'); idle(90);
 }
+function toTehranInputValue(iso){
+  if(!iso)return '';
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(iso));
+  const p={};parts.forEach(x=>{if(x.type!=='literal')p[x.type]=x.value;});
+  return p.year+'-'+p.month+'-'+p.day+'T'+p.hour+':'+p.minute;
+}
+function fromTehranInputValue(value){
+  const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if(!m)return null;
+  const utc=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-OFF;
+  const d=new Date(utc);
+  return Number.isNaN(d.getTime())?null:d;
+}
+function openCorrectionForm(row){
+  correctionTarget=row;
+  $('correctionRecordLabel').textContent='رکورد انتخاب‌شده: '+dayFmt(row.check_in)+' | ورود فعلی: '+tm(row.check_in)+' | خروج فعلی: '+(row.check_out?tm(row.check_out):'ثبت نشده');
+  $('correctionCheckIn').value=toTehranInputValue(row.check_in);
+  $('correctionCheckOut').value=row.check_out?toTehranInputValue(row.check_out):'';
+  $('correctionReason').value='';
+  $('correctionFormMsg').textContent='';
+  $('correctionFormBox').hidden=false;
+  $('correctionFormBox').scrollIntoView({behavior:'smooth',block:'center'});
+  idle(180);
+}
+$('cancelCorrection').onclick=()=>{
+  $('correctionFormBox').hidden=true;correctionTarget=null;
+  $('correctionForm').reset();$('correctionFormMsg').textContent='';
+};
+$('correctionForm').onsubmit=async e=>{
+  e.preventDefault();
+  const row=correctionTarget;
+  if(!row){$('correctionFormMsg').textContent='ابتدا رکورد موردنظر را انتخاب کنید.';return;}
+  const inDate=fromTehranInputValue($('correctionCheckIn').value);
+  const outValue=$('correctionCheckOut').value;
+  const outDate=outValue?fromTehranInputValue(outValue):null;
+  const reason=$('correctionReason').value.trim();
+  if(!inDate||(outValue&&!outDate)){ $('correctionFormMsg').textContent='تاریخ و ساعت ورود یا خروج معتبر نیست.';return; }
+  if(outDate&&outDate<=inDate){$('correctionFormMsg').textContent='ساعت خروج باید بعد از ساعت ورود باشد.';return;}
+  if(reason.length<5){$('correctionFormMsg').textContent='دلیل درخواست باید حداقل ۵ حرف باشد.';return;}
+  $('sendCorrection').disabled=true;
+  $('correctionFormMsg').textContent='در حال ارسال درخواست برای مدیر...';
+  try{
+    const result=await rpc('employee_submit_attendance_request_pin',{
+      p_pin:pass,p_record_id:row.id,
+      p_requested_check_in:inDate.toISOString(),
+      p_requested_check_out:outDate?outDate.toISOString():null,
+      p_reason:reason
+    });
+    if(!result.ok){
+      const messages={
+        record_not_found:'این رکورد متعلق به شما نیست یا پیدا نشد.',
+        request_already_pending:'برای این رکورد یک درخواست در انتظار بررسی وجود دارد.',
+        reason_required:'دلیل درخواست کافی نیست.',
+        reason_too_long:'دلیل درخواست نباید بیشتر از ۵۰۰ حرف باشد.',
+        daily_request_limit_reached:'سقف ۱۰ درخواست اصلاح در ۲۴ ساعت پر شده است.',
+        no_changes_requested:'ساعت‌های واردشده با رکورد فعلی تفاوتی ندارند.',
+        wrong_pin:'کد پرسنلی تأیید نشد. دوباره وارد سوابق شوید.',
+        locked:'به دلیل تلاش ناموفق، دسترسی موقتاً قفل شده است.'
+      };
+      $('correctionFormMsg').textContent=messages[result.error]||'درخواست ثبت نشد: '+result.error;
+      return;
+    }
+    $('correctionFormMsg').textContent='درخواست شما با موفقیت ثبت شد و برای بررسی به مدیر ارسال شد.';
+    correctionTarget=null;
+    await loadRec();
+  }catch(err){
+    $('correctionFormMsg').textContent='ارسال درخواست ناموفق بود: '+(err.message||'اتصال اینترنت را بررسی کنید.');
+  }finally{$('sendCorrection').disabled=false;}
+};
 $('tb').onclick = async e => {
   const b = e.target.closest('button[data-correction]');
   if (!b) return;
   const row = recRows.find(x => x.id === b.dataset.correction);
   if (!row || row.has_pending_request) return;
-  const checkIn = prompt('زمان ورود درخواستی با قالب ISO-8601 و منطقه زمانی (مثال: 2026-11-18T08:30:00+03:30):', new Date(row.check_in).toISOString());
-  if (checkIn === null) return;
-  const checkOut = prompt('زمان خروج درخواستی با قالب ISO-8601؛ اگر هنوز خروج ثبت نشده، خالی بگذار:', row.check_out ? new Date(row.check_out).toISOString() : '');
-  if (checkOut === null) return;
-  const reason = prompt('دلیل درخواست اصلاح را بنویس (حداقل ۵ حرف):');
-  if (!reason || reason.trim().length < 5) { $('reqmsg').textContent = 'دلیل درخواست باید حداقل ۵ حرف باشد.'; return; }
-  const inDate = new Date(checkIn), outDate = checkOut.trim() ? new Date(checkOut) : null;
-  if (Number.isNaN(inDate.getTime()) || (outDate && Number.isNaN(outDate.getTime())) ||
-      (outDate && outDate <= inDate)) {
-    $('reqmsg').textContent = 'زمان واردشده معتبر نیست یا خروج قبل از ورود است.'; return;
-  }
-  b.disabled = true;
-  $('reqmsg').textContent = 'در حال ارسال درخواست...';
-  try {
-    const result = await rpc('employee_submit_attendance_request_pin', {
-      p_pin: pass, p_record_id: row.id,
-      p_requested_check_in: inDate.toISOString(),
-      p_requested_check_out: outDate ? outDate.toISOString() : null,
-      p_reason: reason.trim()
-    });
-    if (!result.ok) {
-      const messages = {
-        record_not_found: 'این رکورد متعلق به شما نیست یا پیدا نشد.',
-        request_already_pending: 'برای این رکورد یک درخواست در انتظار بررسی وجود دارد.',
-        reason_required: 'دلیل درخواست کافی نیست.',
-        reason_too_long: 'دلیل درخواست نباید بیشتر از ۵۰۰ حرف باشد.',
-        daily_request_limit_reached: 'سقف ۱۰ درخواست اصلاح در ۲۴ ساعت پر شده است.',
-        no_changes_requested: 'زمان‌های جدید با رکورد فعلی تفاوتی ندارند.',
-        wrong_pin: 'کد پرسنلی تأیید نشد. دوباره وارد سوابق شوید.',
-        locked: 'به دلیل تلاش ناموفق، دسترسی موقتاً قفل شده است.'
-      };
-      $('reqmsg').textContent = messages[result.error] || 'درخواست ثبت نشد: ' + result.error;
-      b.disabled = false;
-      return;
-    }
-    $('reqmsg').textContent = 'درخواست شما ثبت شد و پس از بررسی مدیر نتیجه نمایش داده می‌شود.';
-    await loadRec();
-  } catch (err) {
-    $('reqmsg').textContent = 'ارسال درخواست ناموفق بود. اتصال اینترنت را بررسی کنید.';
-    b.disabled = false;
-  }
+  openCorrectionForm(row);
 };
 $('pv').onclick = () => { mstart = monthStart(mstart - D); loadRec().catch(() => {}); };
 $('nx').onclick = () => { mstart = nextMonth(mstart); loadRec().catch(() => {}); };
