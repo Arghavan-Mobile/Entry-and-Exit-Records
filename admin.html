@@ -928,16 +928,21 @@ function attendanceWorkMetrics(record, schedule=null) {
   if(epochs.length>1 && Math.abs(start.getTime()-epochs[1])<Math.abs(start.getTime()-epochs[0]))index=1;
   const expectedStart=epochs[index], expectedEnd=base.getTime()+ends[index]*60000;
   const inMs=start.getTime(), outMs=end?end.getTime():null;
+  // نوبت اول: خروج بعد از پایان شیفت تا ساعت استراحت، برای محاسبه روی پایان شیفت محدود می‌شود.
+  // نوبت دوم: ورود زودتر از شروع شیفت، نه اضافه‌کاری است و نه زمان کار؛ مبنا ساعت شروع شیفت است.
+  const effectiveInMs=index===1?Math.max(inMs,expectedStart):inMs;
+  const effectiveOutMs=index===0&&outMs!==null?Math.min(outMs,expectedEnd):outMs;
   const crossesBreak=outMs!==null && index===0 && outMs>=epochs[1];
-  const overlap=outMs===null?0:Math.max(0,Math.round((Math.min(outMs,expectedEnd)-Math.max(inMs,expectedStart))/60000));
-  const beforeStart=Math.max(0,Math.round((expectedStart-inMs)/60000));
-  const afterEnd=outMs===null?0:(!crossesBreak?Math.max(0,Math.round((outMs-expectedEnd)/60000)):0);
+  const overlap=effectiveOutMs===null?0:Math.max(0,Math.round((Math.min(effectiveOutMs,expectedEnd)-Math.max(effectiveInMs,expectedStart))/60000));
+  const beforeStart=index===0?Math.max(0,Math.round((expectedStart-inMs)/60000)):0;
+  const afterEnd=effectiveOutMs===null?0:(!crossesBreak&&index===1?Math.max(0,Math.round((effectiveOutMs-expectedEnd)/60000)):0);
   const scheduled=schedule.isWorkday===false?0:ends[index]-starts[index];
   const late=schedule.isWorkday===false?0:Math.max(0,Math.round((inMs-expectedStart)/60000));
   const early=schedule.isWorkday===false||outMs===null?0:Math.max(0,Math.round((expectedEnd-outMs)/60000));
   const overtime=schedule.isWorkday===false?(outMs===null?0:Math.max(0,Math.round((outMs-inMs)/60000))):beforeStart+afterEnd;
   const worked=schedule.isWorkday===false?overtime:overlap+overtime;
   return {shift:index+1,late,early,overtime,worked,scheduled,complete:!!end,crossesBreak,
+    displayCheckIn:new Date(effectiveInMs),displayCheckOut:effectiveOutMs===null?null:new Date(effectiveOutMs),
     expectedStart:new Date(expectedStart),expectedEnd:new Date(expectedEnd),scheduleVersionId:schedule.version_id||null};
 }
 function dailyWorkMetrics(records) {
@@ -1009,7 +1014,7 @@ async function loadReport() {
       const outDevice = deviceLabel(r.check_out_device_info);
       const deviceCell = '<div title="اطلاعات دستگاه از مرورگر ارسال شده و قابل جعل است"><small>ورود: ' + esc(inDevice) + '</small><br><small>خروج: ' + esc(outDevice) + '</small></div>';
       return '<tr><td>' + esc(names.get(r.employee_id) || 'کارمند حذف‌شده') + '</td><td>' +
-        reportFaTime(r.check_in) + '</td><td>' + reportFaTime(r.check_out) + '</td><td>' +
+        reportFaTime(m?m.displayCheckIn:r.check_in) + '</td><td>' + reportFaTime(m?m.displayCheckOut:r.check_out) + '</td><td>' +
         duration + '</td><td>' + late + '</td><td>' + early + '</td><td>' + overtime + '</td><td>' + status + '</td><td>' + deviceCell + '</td><td class="a" data-record="' + r.id + '">' +
         '<button class="g" data-report-action="edit">اصلاح</button>' +
         '<button class="g" data-report-action="delete">حذف</button></td></tr>';
@@ -1212,7 +1217,7 @@ $('exportReportExcel').onclick = async () => {
       const status = r.needs_review ? 'نیازمند بررسی' : (m && m.crossesBreak ? 'ثبت عبوری از زمان استراحت؛ بررسی شود' : (r.edited ? 'اصلاح‌شده' : 'عادی'));
       return [
         names.get(r.employee_id) || 'کارمند حذف‌شده', reportDateKey(r.check_in),
-        reportFaTime(r.check_in), reportFaTime(r.check_out),m?'نوبت '+m.shift:'—',
+        reportFaTime(m?m.displayCheckIn:r.check_in), reportFaTime(m?m.displayCheckOut:r.check_out),m?'نوبت '+m.shift:'—',
         m?fmtMinutes(m.worked)+(m.complete?'':' (باز)'):'—',
         m?fmtMinutes(m.late):'—',m?fmtMinutes(m.early):'—',m?fmtMinutes(m.overtime):'—',
         status,deviceLabel(r.check_in_device_info),deviceLabel(r.check_out_device_info)
@@ -1254,7 +1259,7 @@ $('exportReport').onclick = async () => {
   const rows = [['employee','date','check_in','check_out','shift','net_work_minutes','lateness_minutes','early_leave_minutes','overtime_minutes','needs_review','edited','check_in_device','check_out_device'], ...reportCache.map(r => {
     const m=attendanceWorkMetrics(r);
     return [
-      names.get(r.employee_id) || '', reportDateKey(r.check_in), r.check_in || '', r.check_out || '',
+      names.get(r.employee_id) || '', reportDateKey(r.check_in), m?m.displayCheckIn.toISOString():(r.check_in || ''), m?(m.displayCheckOut?m.displayCheckOut.toISOString():''):(r.check_out || ''),
       m?'shift '+m.shift:'',m?m.worked:'',m?m.late:'',m?m.early:'',m?m.overtime:'',
       r.needs_review, r.edited,deviceLabel(r.check_in_device_info),deviceLabel(r.check_out_device_info)
     ];
