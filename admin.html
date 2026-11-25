@@ -930,8 +930,8 @@ function attendanceWorkMetrics(record, schedule=null) {
   const inMs=start.getTime(), outMs=end?end.getTime():null;
   // نوبت اول: خروج بعد از پایان شیفت تا ساعت استراحت، برای محاسبه روی پایان شیفت محدود می‌شود.
   // نوبت دوم: ورود زودتر از شروع شیفت، نه اضافه‌کاری است و نه زمان کار؛ مبنا ساعت شروع شیفت است.
-  const effectiveInMs=index===1?Math.max(inMs,expectedStart):inMs;
-  const effectiveOutMs=index===0&&outMs!==null?Math.min(outMs,expectedEnd):outMs;
+  const effectiveInMs=schedule.isWorkday===false?inMs:(index===1?Math.max(inMs,expectedStart):inMs);
+  const effectiveOutMs=schedule.isWorkday===false?outMs:(index===0&&outMs!==null?Math.min(outMs,expectedEnd):outMs);
   const crossesBreak=outMs!==null && index===0 && outMs>=epochs[1];
   const overlap=effectiveOutMs===null?0:Math.max(0,Math.round((Math.min(effectiveOutMs,expectedEnd)-Math.max(effectiveInMs,expectedStart))/60000));
   const beforeStart=index===0?Math.max(0,Math.round((expectedStart-inMs)/60000)):0;
